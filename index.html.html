@@ -1,0 +1,3281 @@
+<!DOCTYPE html>
+<html lang="zh-HK">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ICP + MEF + 約束到期日監察管理系統 (高級進階版)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
+    
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        body {
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            background-color: #f8fafc;
+        }
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: #f1f5f9;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+
+        @keyframes toastIn {
+            from { opacity: 0; transform: translateY(-20px) scale(0.95); }
+            to { opacity: 1; transform: translateY(0) scale(1); }
+        }
+        .toast-animate {
+            animation: toastIn 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+
+        /* 亮紅醒目邊框與文字樣式 (套用指定修改日期查找時) */
+        .modified-date-highlight {
+            border: 2px solid #ef4444 !important;
+            background-color: #fef2f2 !important;
+            border-radius: 0.375rem;
+            padding: 2px 4px;
+        }
+        .modified-date-highlight .date-text,
+        .modified-date-highlight span {
+            color: #dc2626 !important;
+            font-weight: 800 !important;
+        }
+
+        @media print {
+            body {
+                background-color: #ffffff !important;
+                color: #000000 !important;
+                font-size: 11pt !important;
+            }
+            header, footer, .no-print, #toastContainer, #residentModal, #excelExportModal, #startupImportModal, #confirmModal, #todoPrintModal, #dateCalculatorModal, #bmiCalculatorModal, #expiryAlertModal, #auditTrailModal, #modifiedSearchModal {
+                display: none !important;
+            }
+            .print-only {
+                display: block !important;
+            }
+            .page-break {
+                page-break-before: always;
+            }
+            table {
+                width: 100% !important;
+                border-collapse: collapse !important;
+            }
+            th, td {
+                border: 1px solid #333333 !important;
+                padding: 6px 8px !important;
+                font-size: 10pt !important;
+                color: #000000 !important;
+                text-align: center;
+            }
+            th {
+                background-color: #f0f0f0 !important;
+                font-weight: bold !important;
+            }
+        }
+        .print-only {
+            display: none;
+        }
+    </style>
+</head>
+<body class="text-slate-800 bg-slate-50 min-h-screen flex flex-col">
+
+    <div id="toastContainer" class="fixed top-5 right-5 z-[100] flex flex-col gap-2 max-w-md w-full pointer-events-none px-4 sm:px-0"></div>
+
+    <header class="bg-sky-100 text-slate-800 shadow-md sticky top-0 z-30 no-print">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3.5 flex flex-wrap justify-between items-center gap-4">
+            <div class="flex items-center space-x-3">
+                <div class="bg-sky-200 p-2.5 rounded-xl shadow-inner text-sky-800">
+                    <i class="fa-solid fa-clipboard-check text-2xl"></i>
+                </div>
+                <div>
+                    <h1 class="text-xl font-bold tracking-tight text-slate-900 flex items-center gap-2">
+                        ICP + MEF + 約束到期日監察管理系統
+                    </h1>
+                    <p class="text-xs text-slate-600">安老院舍個人照顧計劃、約束、自購藥物到期自動監測 (不儲存於本機)</p>
+                </div>
+            </div>
+
+            <!-- Header Action Buttons -->
+            <div class="flex items-center gap-2 flex-wrap">
+                <button onclick="openBmiCalculatorModal()" class="px-3 py-1.5 bg-teal-600 hover:bg-teal-500 text-white text-xs font-semibold rounded-lg transition-colors flex items-center gap-1 shadow-sm" title="獨立 BMI 計算器">
+                    <i class="fa-solid fa-weight-scale"></i> BMI 計算
+                </button>
+
+                <button onclick="openDateCalculatorModal()" class="px-3 py-1.5 bg-fuchsia-600 hover:bg-fuchsia-500 text-white text-xs font-bold rounded-lg transition-colors flex items-center gap-1 shadow-sm" title="日期計算器：加減天數、月數、年數">
+                    <i class="fa-solid fa-calculator"></i> 日期計算器
+                </button>
+
+                <!-- 獨立功能於日期計算器後：指定日期內修改資料查找 -->
+                <button onclick="openModifiedSearchModal()" class="px-3.5 py-1.5 bg-purple-700 hover:bg-purple-600 text-white text-xs font-bold rounded-lg transition-colors flex items-center gap-1 shadow-md ring-2 ring-purple-300/50" title="查找指定日期範圍內有修改過資料的院友">
+                    <i class="fa-solid fa-clock-rotate-left"></i> 修改記錄查找
+                </button>
+
+                <button onclick="openTodoPrintModal()" class="px-3 py-1.5 bg-sky-600 hover:bg-sky-500 text-white text-xs font-semibold rounded-lg transition-colors flex items-center gap-1 shadow-sm" title="開啟待辦清單與列印預覽">
+                    <i class="fa-solid fa-print"></i> 待辦 / 列印報表
+                </button>
+
+                <button onclick="openExcelExportModal()" class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold rounded-lg transition-colors flex items-center gap-1 shadow-sm" title="匯出 Excel 報表 (MEF / 約束 / ICP)">
+                    <i class="fa-solid fa-file-excel"></i> 匯出 Excel
+                </button>
+
+                <button onclick="exportData()" class="px-3 py-1.5 bg-sky-700 hover:bg-sky-600 text-white text-xs font-semibold rounded-lg transition-colors flex items-center gap-1 shadow-sm" title="將最新數據儲存覆蓋原檔案或匯出 JSON">
+                    <i class="fa-solid fa-floppy-disk"></i> 匯出/儲存 JSON
+                </button>
+                <button onclick="triggerImportJSON()" class="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold rounded-lg transition-colors flex items-center gap-1 shadow-sm" title="從 JSON 讀取最新數據檔案">
+                    <i class="fa-solid fa-file-import"></i> 匯入 JSON
+                </button>
+                <input type="file" id="importFileInput" class="hidden" accept=".json" onchange="importDataFallback(event)">
+
+                <button onclick="openResidentModal()" class="px-3.5 py-1.5 bg-emerald-700 hover:bg-emerald-600 text-white text-xs font-semibold rounded-lg transition-colors flex items-center gap-1.5 shadow-sm">
+                    <i class="fa-solid fa-user-plus"></i> 新增院友
+                </button>
+
+                <button onclick="closeAndExportSystem()" class="px-3 py-1.5 bg-rose-700 hover:bg-rose-600 text-white text-xs font-semibold rounded-lg transition-colors flex items-center gap-1 shadow-sm" title="修改過數據將自動覆蓋/匯出 JSON 備份並關閉系統">
+                    <i class="fa-solid fa-power-off"></i> 關閉系統
+                </button>
+
+                <div class="bg-sky-200/80 px-3 py-1.5 rounded-lg border border-sky-300 flex items-center gap-2 text-xs text-slate-800">
+                    <i class="fa-regular fa-calendar-check text-sky-700"></i>
+                    <span>系統基準日：</span>
+                    <input type="datetime-local" id="systemBaseDate" step="1" class="bg-white text-slate-800 border border-sky-400 rounded px-2 py-0.5 text-xs focus:outline-none focus:ring-1 focus:ring-sky-500 font-mono">
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 flex-grow w-full no-print">
+        
+        <!-- Top Summary Cards -->
+        <div class="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 mb-6">
+            <div onclick="setFilterRisk('overdue')" class="cursor-pointer bg-white p-4 rounded-xl shadow-sm border border-rose-200 hover:border-rose-400 transition-all flex items-center justify-between group">
+                <div>
+                    <p class="text-xs font-medium text-rose-600 uppercase tracking-wider">已逾期</p>
+                    <h3 class="text-2xl font-bold text-rose-700 mt-1" id="count-overdue">0</h3>
+                </div>
+                <div class="w-10 h-10 rounded-full bg-rose-100 flex items-center justify-center text-rose-600 group-hover:scale-110 transition-transform">
+                    <i class="fa-solid fa-circle-exclamation text-lg"></i>
+                </div>
+            </div>
+
+            <div onclick="setFilterRisk('today')" class="cursor-pointer bg-white p-4 rounded-xl shadow-sm border border-amber-200 hover:border-amber-400 transition-all flex items-center justify-between group">
+                <div>
+                    <p class="text-xs font-medium text-amber-600 uppercase tracking-wider">今日到期</p>
+                    <h3 class="text-2xl font-bold text-amber-700 mt-1" id="count-today">0</h3>
+                </div>
+                <div class="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center text-amber-600 group-hover:scale-110 transition-transform">
+                    <i class="fa-solid fa-bell text-lg"></i>
+                </div>
+            </div>
+
+            <div onclick="setFilterRisk('week')" class="cursor-pointer bg-white p-4 rounded-xl shadow-sm border border-orange-200 hover:border-orange-400 transition-all flex items-center justify-between group">
+                <div>
+                    <p class="text-xs font-medium text-orange-600 uppercase tracking-wider">最近 1 星期內</p>
+                    <h3 class="text-2xl font-bold text-orange-700 mt-1" id="count-week">0</h3>
+                </div>
+                <div class="w-10 h-10 rounded-full bg-orange-100 flex items-center justify-center text-orange-600 group-hover:scale-110 transition-transform">
+                    <i class="fa-solid fa-clock text-lg"></i>
+                </div>
+            </div>
+
+            <div onclick="setFilterRisk('month')" class="cursor-pointer bg-white p-4 rounded-xl shadow-sm border border-slate-200 hover:border-slate-400 transition-all flex items-center justify-between group">
+                <div>
+                    <p class="text-xs font-medium text-sky-600 uppercase tracking-wider">最近 1 個月內</p>
+                    <h3 class="text-2xl font-bold text-sky-700 mt-1" id="count-month">0</h3>
+                </div>
+                <div class="w-10 h-10 rounded-full bg-sky-100 flex items-center justify-center text-sky-600 group-hover:scale-110 transition-transform">
+                    <i class="fa-solid fa-calendar-days text-lg"></i>
+                </div>
+            </div>
+        </div>
+
+        <!-- Batch Action Bar -->
+        <div id="batchActionBar" class="hidden mb-4 p-3.5 bg-sky-900 text-white rounded-xl shadow-md border border-sky-700 flex flex-wrap items-center justify-between gap-3 transition-all">
+            <div class="flex items-center gap-2">
+                <span class="bg-amber-400 text-sky-950 px-2.5 py-0.5 rounded-md font-bold text-xs" id="selectedCountBadge">已選取 0 位</span>
+                <span class="text-xs text-sky-200 font-medium">快捷集體延長作業：</span>
+            </div>
+
+            <div class="flex items-center gap-2 flex-wrap">
+                <div class="bg-sky-800/90 p-1.5 rounded-lg border border-sky-700 flex items-center gap-1.5 text-xs">
+                    <span class="font-semibold text-sky-200 pl-1">MEF-A:</span>
+                    <button onclick="batchExtendField('mefA', 6)" class="px-2 py-1 bg-amber-500 hover:bg-amber-400 text-slate-900 font-bold rounded text-[11px] transition-colors" title="基準日加 6 個月-1天，自動向前對齊星期二/四">
+                        +6月(對齊二/四)
+                    </button>
+                    <button onclick="batchExtendField('mefA', 12)" class="px-2 py-1 bg-amber-500 hover:bg-amber-400 text-slate-900 font-bold rounded text-[11px] transition-colors" title="基準日加 1 年-1天，自動向前對齊星期二/四">
+                        +1年(對齊二/四)
+                    </button>
+                </div>
+
+                <div class="bg-sky-800/90 p-1.5 rounded-lg border border-sky-700 flex items-center gap-1.5 text-xs">
+                    <span class="font-semibold text-sky-200 pl-1">約束:</span>
+                    <button onclick="batchExtendField('restraint', 6)" class="px-2 py-1 bg-rose-500 hover:bg-rose-400 text-white font-bold rounded text-[11px] transition-colors" title="基準日加 6 個月-1天，自動向前對齊星期二/四">
+                        +6月(對齊二/四)
+                    </button>
+                    <button onclick="batchExtendField('restraint', 12)" class="px-2 py-1 bg-rose-500 hover:bg-rose-400 text-white font-bold rounded text-[11px] transition-colors" title="基準日加 1 年-1天，自動向前對齊星期二/四">
+                        +1年(對齊二/四)
+                    </button>
+                </div>
+
+                <div class="bg-sky-800/90 p-1.5 rounded-lg border border-sky-700 flex items-center gap-1.5 text-xs">
+                    <span class="font-semibold text-purple-200 pl-1">自購藥物:</span>
+                    <button onclick="batchExtendField('ownMedication', 6)" class="px-2 py-1 bg-purple-500 hover:bg-purple-400 text-white font-bold rounded text-[11px] transition-colors">
+                        +6月
+                    </button>
+                    <button onclick="batchExtendField('ownMedication', 12)" class="px-2 py-1 bg-purple-500 hover:bg-purple-400 text-white font-bold rounded text-[11px] transition-colors">
+                        +1年
+                    </button>
+                </div>
+
+                <div class="bg-sky-800/90 p-1.5 rounded-lg border border-sky-700 flex items-center gap-1.5 text-xs">
+                    <span class="font-semibold text-sky-200 pl-1">ICP(全套):</span>
+                    <button onclick="batchExtendIcpGroup(6)" class="px-2 py-1 bg-sky-500 hover:bg-sky-400 text-white font-bold rounded text-[11px] transition-colors">
+                        +6月
+                    </button>
+                    <button onclick="batchExtendIcpGroup(12)" class="px-2 py-1 bg-sky-500 hover:bg-sky-400 text-white font-bold rounded text-[11px] transition-colors">
+                        +1年
+                    </button>
+                </div>
+
+                <button onclick="batchDeletePrompt()" class="px-2.5 py-1.5 bg-rose-800 hover:bg-rose-700 text-white rounded-lg text-xs font-semibold transition-colors border border-rose-600">
+                    <i class="fa-solid fa-trash-can mr-1"></i>批量刪除
+                </button>
+
+                <button onclick="clearAllSelections()" class="px-2 py-1.5 text-slate-300 hover:text-white text-xs underline">
+                    取消選取
+                </button>
+            </div>
+        </div>
+
+        <!-- Control Bar: Search, Room Sort, Filters, View Modes -->
+        <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 mb-6 flex flex-col md:flex-row justify-between items-center gap-4">
+            <div class="flex items-center gap-3 w-full md:w-auto flex-wrap sm:flex-nowrap">
+                <div class="relative w-full sm:w-64">
+                    <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-1/2 transform -translate-y-1/2 text-slate-400"></i>
+                    <input type="text" id="searchInput" oninput="renderMainView()" placeholder="搜尋房號或院友姓名..." class="w-full pl-10 pr-4 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-sky-500">
+                </div>
+
+                <button onclick="togglePrimarySort()" id="btnTogglePrimarySort" class="px-3.5 py-2 bg-sky-50 hover:bg-sky-100 text-sky-800 border border-sky-200 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 shrink-0 shadow-sm" title="點擊切換排序方式 (近至遠 / 遠至近)">
+                    <i class="fa-solid fa-arrow-down-1-9 text-sky-700" id="primarySortIcon"></i>
+                    <span id="primarySortText">按房號順序</span>
+                </button>
+
+                <!-- 視圖切換：表格 vs 床位圖 -->
+                <div class="flex items-center bg-slate-100 p-1 rounded-lg border border-slate-200 text-xs font-bold">
+                    <button onclick="switchViewMode('table')" id="btnViewTable" class="px-3 py-1.5 rounded-md bg-white text-sky-800 shadow-sm transition-all flex items-center gap-1">
+                        <i class="fa-solid fa-table-list"></i> 表格視圖
+                    </button>
+                    <button onclick="switchViewMode('grid')" id="btnViewGrid" class="px-3 py-1.5 rounded-md text-slate-600 hover:text-slate-900 transition-all flex items-center gap-1">
+                        <i class="fa-solid fa-border-all"></i> 房號分板
+                    </button>
+                </div>
+            </div>
+
+            <div class="flex items-center gap-1 bg-slate-100 p-1 rounded-lg w-full md:w-auto overflow-x-auto text-xs font-medium">
+                <button onclick="setFilterRisk('all')" id="btn-filter-all" class="px-3 py-1.5 rounded-md transition-all whitespace-nowrap bg-sky-600 text-white shadow-sm font-semibold">全部顯示</button>
+                <button onclick="setFilterRisk('overdue')" id="btn-filter-overdue" class="px-3 py-1.5 rounded-md transition-all whitespace-nowrap text-slate-600 hover:text-slate-900">🚨 已逾期</button>
+                <button onclick="setFilterRisk('today')" id="btn-filter-today" class="px-3 py-1.5 rounded-md transition-all whitespace-nowrap text-slate-600 hover:text-slate-900">🔔 今日到期</button>
+                <button onclick="setFilterRisk('week')" id="btn-filter-week" class="px-3 py-1.5 rounded-md transition-all whitespace-nowrap text-slate-600 hover:text-slate-900">⏰ 一週內到期</button>
+                <button onclick="setFilterRisk('month')" id="btn-filter-month" class="px-3 py-1.5 rounded-md transition-all whitespace-nowrap text-slate-600 hover:text-slate-900">📅 一月內到期</button>
+            </div>
+        </div>
+
+        <!-- Active Filter Indicator Banner -->
+        <div id="activeFilterNotice" class="hidden mb-4 p-3 bg-purple-100/80 border border-purple-300 rounded-xl text-purple-900 text-xs flex items-center justify-between shadow-sm">
+            <div class="flex items-center gap-2 font-semibold">
+                <i class="fa-solid fa-filter text-purple-700"></i>
+                <span id="activeFilterText">目前正在以修改日期範圍進行篩選</span>
+            </div>
+            <button onclick="clearModifiedDateRange()" class="px-2.5 py-1 bg-purple-700 hover:bg-purple-800 text-white font-bold rounded-lg text-[11px] transition-colors">
+                清除修改日期篩選
+            </button>
+        </div>
+
+        <!-- 視圖1: Main Residents Data Table -->
+        <div id="tableViewContainer" class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+            <div class="overflow-x-auto custom-scrollbar">
+                <table class="w-full text-left border-collapse text-sm">
+                    <thead>
+                        <tr class="bg-slate-100 border-b border-slate-200 text-slate-700 font-semibold text-xs uppercase tracking-wider">
+                            <th class="py-3.5 px-3 w-10 text-center select-none">
+                                <input type="checkbox" id="selectAllCheckbox" onchange="toggleSelectAll(this)" class="w-4 h-4 text-sky-600 rounded border-slate-300 focus:ring-sky-500 cursor-pointer">
+                            </th>
+                            <th onclick="togglePrimarySort()" class="py-3.5 px-3 w-24 text-center cursor-pointer hover:bg-sky-100/60 transition-colors group select-none" title="點擊切換 房號 順序 (近至遠 / 遠至近)">
+                                <div class="flex items-center justify-center gap-1.5 text-sky-900 font-bold">
+                                    <span>房號</span>
+                                    <i id="thPrimarySortIcon" class="fa-solid fa-sort text-sky-600 group-hover:text-sky-800 transition-transform"></i>
+                                </div>
+                            </th>
+                            <th class="py-3.5 px-3 w-28">院友姓名</th>
+                            <th onclick="setSortMode('admissionDate')" class="py-3.5 px-3 w-28 cursor-pointer hover:bg-sky-100/60 transition-colors select-none">
+                                <div class="flex items-center gap-1"><span>入院日期</span><i id="sortIcon-admissionDate" class="fa-solid fa-sort text-xs text-slate-400"></i></div>
+                            </th>
+                            <th onclick="setSortMode('mefA')" class="py-3.5 px-3 text-center cursor-pointer hover:bg-sky-100/60 transition-colors select-none">
+                                <div class="flex items-center justify-center gap-1"><span>MEF-A 到期日</span><i id="sortIcon-mefA" class="fa-solid fa-sort text-xs text-slate-400"></i></div>
+                            </th>
+                            <th onclick="setSortMode('restraint')" class="py-3.5 px-3 text-center cursor-pointer hover:bg-sky-100/60 transition-colors select-none">
+                                <div class="flex items-center justify-center gap-1"><span>約束到期日</span><i id="sortIcon-restraint" class="fa-solid fa-sort text-xs text-slate-400"></i></div>
+                            </th>
+                            <th onclick="setSortMode('ownMedication')" class="py-3.5 px-3 text-center cursor-pointer hover:bg-sky-100/60 transition-colors select-none text-purple-900">
+                                <div class="flex items-center justify-center gap-1"><span>自購藥物到期日</span><i id="sortIcon-ownMedication" class="fa-solid fa-sort text-xs text-slate-400"></i></div>
+                            </th>
+                            <th onclick="setSortMode('personalCare')" class="py-3.5 px-3 text-center cursor-pointer hover:bg-sky-100/60 transition-colors select-none">
+                                <div class="flex items-center justify-center gap-1"><span>個人照顧計劃 (PC)</span><i id="sortIcon-personalCare" class="fa-solid fa-sort text-xs text-slate-400"></i></div>
+                            </th>
+                            <th onclick="setSortMode('icpNurse')" class="py-3.5 px-3 text-center cursor-pointer hover:bg-sky-100/60 transition-colors select-none">
+                                <div class="flex items-center justify-center gap-1"><span>ICP 護士</span><i id="sortIcon-icpNurse" class="fa-solid fa-sort text-xs text-slate-400"></i></div>
+                            </th>
+                            <th onclick="setSortMode('icpSw')" class="py-3.5 px-3 text-center cursor-pointer hover:bg-sky-100/60 transition-colors select-none">
+                                <div class="flex items-center justify-center gap-1"><span>ICP 社工</span><i id="sortIcon-icpSw" class="fa-solid fa-sort text-xs text-slate-400"></i></div>
+                            </th>
+                            <th onclick="setSortMode('icpPt')" class="py-3.5 px-3 text-center cursor-pointer hover:bg-sky-100/60 transition-colors select-none">
+                                <div class="flex items-center justify-center gap-1"><span>ICP 物理治療</span><i id="sortIcon-icpPt" class="fa-solid fa-sort text-xs text-slate-400"></i></div>
+                            </th>
+                            <th class="py-3.5 px-3 text-center w-24">操作</th>
+                        </tr>
+                    </thead>
+                    <tbody id="residentTableBody" class="divide-y divide-slate-200">
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- 視圖2: 床位圖 / 房號視覺化分板 (Room Layout Grid Dashboard) -->
+        <div id="gridViewContainer" class="hidden grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+        </div>
+            
+        <div id="emptyState" class="hidden py-12 text-center text-slate-400 bg-white rounded-xl shadow-sm border border-slate-200 mt-4">
+            <i class="fa-solid fa-folder-open text-4xl mb-3"></i>
+            <p class="text-sm font-medium">沒有符合條件的院友記錄</p>
+            <div class="mt-4">
+                <button onclick="openResidentModal()" class="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-lg text-xs font-semibold shadow-sm transition-colors">
+                    <i class="fa-solid fa-user-plus mr-1"></i> 新增第一筆院友資料
+                </button>
+            </div>
+        </div>
+
+    </main>
+
+    <div id="printableArea" class="print-only p-8 bg-white text-black">
+        <div id="printableContent"></div>
+    </div>
+
+    <!-- 獨立功能 Modal：指定日期內修改資料查找 Modal -->
+    <div id="modifiedSearchModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center hidden no-print">
+        <div class="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-lg mx-4 overflow-hidden flex flex-col">
+            <div class="bg-purple-900 text-white px-6 py-4 flex justify-between items-center">
+                <div class="flex items-center gap-2">
+                    <i class="fa-solid fa-clock-rotate-left text-purple-300 text-xl"></i>
+                    <div>
+                        <h3 class="font-bold text-lg">指定日期修改資料查找</h3>
+                        <p class="text-xs text-purple-200">快速篩選與檢索在特定日期範圍內有過更新異動的院友</p>
+                    </div>
+                </div>
+                <button onclick="closeModifiedSearchModal()" class="text-purple-300 hover:text-white transition-colors text-lg">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+
+            <div class="p-6 space-y-4">
+                <div class="bg-purple-50 p-4 rounded-xl border border-purple-200 space-y-3">
+                    <label class="block text-xs font-bold text-purple-900 mb-1">請設定欲查找的修改日期範圍：</label>
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-xs text-slate-600 mb-1">開始日期 (From)</label>
+                            <input type="date" id="modalModStartDate" class="w-full border border-purple-300 rounded-lg px-3 py-2 text-sm bg-white font-mono focus:ring-2 focus:ring-purple-500 focus:outline-none">
+                        </div>
+                        <div>
+                            <label class="block text-xs text-slate-600 mb-1">結束日期 (To)</label>
+                            <input type="date" id="modalModEndDate" class="w-full border border-purple-300 rounded-lg px-3 py-2 text-sm bg-white font-mono focus:ring-2 focus:ring-purple-500 focus:outline-none">
+                        </div>
+                    </div>
+                    <div class="flex gap-2 flex-wrap pt-1">
+                        <span class="text-xs text-slate-500 self-center">快捷選擇:</span>
+                        <button onclick="setModalModPreset('today')" class="px-2 py-1 bg-white hover:bg-purple-100 text-purple-800 text-xs rounded border border-purple-300 transition-colors">今日修改</button>
+                        <button onclick="setModalModPreset('7days')" class="px-2 py-1 bg-white hover:bg-purple-100 text-purple-800 text-xs rounded border border-purple-300 transition-colors">近 7 天</button>
+                        <button onclick="setModalModPreset('thisMonth')" class="px-2 py-1 bg-white hover:bg-purple-100 text-purple-800 text-xs rounded border border-purple-300 transition-colors">本月</button>
+                    </div>
+                </div>
+
+                <div class="text-xs text-slate-500 bg-slate-50 p-3 rounded-lg border border-slate-200">
+                    <p class="font-bold text-slate-700 mb-0.5">💡 功能說明：</p>
+                    <p>系統將會根據院友的「體檢續期紀錄」以及「異動日誌 (Audit Trail)」的比對時間，找出所有在此範圍內有過新增或變更的院友，並以紅色邊框高亮顯示被修改過的評估項目日期。</p>
+                </div>
+            </div>
+
+            <div class="bg-slate-100 px-6 py-3 border-t border-slate-200 flex justify-between items-center">
+                <button onclick="resetAndClearModifiedSearch()" class="px-3.5 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs font-semibold rounded-lg transition-colors">
+                    重設清除
+                </button>
+                <div class="flex gap-2">
+                    <button onclick="closeModifiedSearchModal()" class="px-4 py-1.5 border border-slate-300 text-slate-700 text-xs font-semibold rounded-lg hover:bg-slate-200 transition-colors">取消</button>
+                    <button onclick="applyModifiedSearchModal()" class="px-4 py-1.5 bg-purple-700 hover:bg-purple-600 text-white text-xs font-semibold rounded-lg transition-colors shadow">
+                        <i class="fa-solid fa-magnifying-glass mr-1"></i> 開始查找
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 歷史評估紀錄與變更日誌彈窗 -->
+    <div id="auditTrailModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[70] flex items-center justify-center hidden no-print">
+        <div class="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-2xl mx-4 overflow-hidden flex flex-col max-h-[85vh]">
+            <div class="bg-slate-900 text-white px-6 py-4 flex justify-between items-center">
+                <div class="flex items-center gap-2">
+                    <i class="fa-solid fa-clock-rotate-left text-sky-400 text-xl"></i>
+                    <div>
+                        <h3 class="font-bold text-lg" id="auditModalTitle">院友評估異動歷史紀錄 (Audit Trail)</h3>
+                        <p class="text-xs text-slate-400">核對該院友過往所有續期與變更時間點，確保符合監管審查要求</p>
+                    </div>
+                </div>
+                <button onclick="closeAuditTrailModal()" class="text-slate-400 hover:text-white transition-colors text-lg">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+
+            <div class="p-6 overflow-y-auto custom-scrollbar flex-grow space-y-3" id="auditTrailModalBody">
+            </div>
+
+            <div class="bg-slate-100 px-6 py-3 border-t border-slate-200 flex justify-end">
+                <button onclick="closeAuditTrailModal()" class="px-4 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-lg text-xs font-semibold">關閉</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 匯入後檢測的今日到期 / 已逾期 / 7日內到期提醒彈出視窗 -->
+    <div id="expiryAlertModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[70] flex items-center justify-center hidden no-print">
+        <div class="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-lg mx-4 overflow-hidden flex flex-col">
+            <div class="bg-rose-900 text-white px-6 py-4 flex justify-between items-center">
+                <div class="flex items-center gap-2">
+                    <i class="fa-solid fa-triangle-exclamation text-rose-300 text-xl"></i>
+                    <div>
+                        <h3 class="font-bold text-lg">JSON 匯入檢測：院友到期提醒通知</h3>
+                        <p class="text-xs text-rose-200">以下院友項目已逾期、今日到期或於 7 日內到期，請盡快處理</p>
+                    </div>
+                </div>
+                <button onclick="closeExpiryAlertModal()" class="text-rose-300 hover:text-white transition-colors text-lg">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+
+            <div class="p-6 space-y-4 max-h-[60vh] overflow-y-auto custom-scrollbar" id="expiryAlertModalBody">
+            </div>
+
+            <div class="bg-slate-100 px-6 py-3 border-t border-slate-200 flex justify-between items-center">
+                <span class="text-xs text-slate-500">提示：您也可以隨時點擊上方摘要卡片篩選檢視。</span>
+                <button onclick="closeExpiryAlertModal()" class="px-4 py-2 bg-rose-700 hover:bg-rose-600 text-white rounded-xl text-xs font-semibold shadow transition-colors">
+                    我知道了
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Independent BMI Calculator Modal -->
+    <div id="bmiCalculatorModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center hidden no-print">
+        <div class="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-md mx-4 overflow-hidden flex flex-col">
+            <div class="bg-teal-800 text-white px-6 py-4 flex justify-between items-center">
+                <div class="flex items-center gap-2">
+                    <i class="fa-solid fa-weight-scale text-teal-200 text-xl"></i>
+                    <div>
+                        <h3 class="font-bold text-lg">獨立 BMI 身體質量指數計算</h3>
+                        <p class="text-xs text-teal-200">快速計算或選取院友評估體位狀態</p>
+                    </div>
+                </div>
+                <button onclick="closeBmiCalculatorModal()" class="text-teal-200 hover:text-white transition-colors text-lg">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+
+            <div class="p-6 space-y-4 max-h-[75vh] overflow-y-auto custom-scrollbar">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-700 mb-1">從現有院友快速載入 (可選)</label>
+                    <select id="bmiResidentSelect" onchange="loadResidentBmiData()" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-teal-500 focus:outline-none bg-white">
+                        <option value="">-- 手動輸入身高體重 --</option>
+                    </select>
+                </div>
+
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-700 mb-1">體重 (kg)</label>
+                        <input type="number" id="standaloneBmiWeight" step="0.1" min="0" placeholder="例: 55.0" oninput="runStandaloneBmiCalc()" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-teal-500 focus:outline-none font-mono">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-700 mb-1">身高 (cm)</label>
+                        <input type="number" id="standaloneBmiHeight" step="0.1" min="0" placeholder="例: 160.0" oninput="runStandaloneBmiCalc()" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-teal-500 focus:outline-none font-mono">
+                    </div>
+                </div>
+
+                <div class="bg-teal-50/70 p-4 rounded-xl border border-teal-200 text-center space-y-2">
+                    <span class="text-xs font-semibold text-teal-900 block">計算結果 (BMI 數值)</span>
+                    <div class="text-3xl font-extrabold font-mono text-teal-800" id="standaloneBmiOutput">--</div>
+                    <div>
+                        <span id="standaloneBmiBadge" class="text-xs px-2.5 py-1 rounded-full border bg-white text-slate-500 border-slate-300 inline-block font-semibold">尚未計算</span>
+                    </div>
+                </div>
+
+                <div class="text-[11px] text-slate-500 space-y-1 bg-slate-50 p-3 rounded-lg border border-slate-200">
+                    <p class="font-bold text-slate-700 mb-0.5">📌 參考標準 (亞洲成人):</p>
+                    <p>• 體重過輕：BMI < 18.5</p>
+                    <p>• 正常範圍：18.5 ≤ BMI < 24.0</p>
+                    <p>• 體重過重：24.0 ≤ BMI < 27.0</p>
+                    <p>• 肥胖體位：BMI ≥ 27.0</p>
+                </div>
+            </div>
+
+            <div class="bg-slate-100 px-6 py-3 border-t border-slate-200 flex justify-end">
+                <button onclick="closeBmiCalculatorModal()" class="px-4 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-lg text-xs font-semibold">關閉</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Date Calculator Modal -->
+    <div id="dateCalculatorModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center hidden no-print">
+        <div class="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-lg mx-4 overflow-hidden flex flex-col">
+            <div class="bg-violet-900 text-white px-6 py-4 flex justify-between items-center">
+                <div class="flex items-center gap-2">
+                    <i class="fa-solid fa-calculator text-violet-300 text-xl"></i>
+                    <div>
+                        <h3 class="font-bold text-lg">日期計算器：加減天數與期限</h3>
+                        <p class="text-xs text-violet-200">快速計算特定日期加上或減去指定天、月、年後的精確到期日</p>
+                    </div>
+                </div>
+                <button onclick="closeDateCalculatorModal()" class="text-violet-300 hover:text-white transition-colors text-lg">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+
+            <div class="p-6 space-y-4 max-h-[75vh] overflow-y-auto custom-scrollbar">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-700 mb-1">起始基準日期 (Start Date)</label>
+                    <div class="relative flex items-center">
+                        <input type="text" id="calcStartDate" placeholder="YYYY-MM-DD" onblur="normalizeDateInput(this)" oninput="runDateCalculator()" class="w-full border border-slate-300 rounded-lg pl-3 pr-8 py-2 text-sm focus:ring-2 focus:ring-violet-500 focus:outline-none font-mono">
+                        <input type="date" id="picker-calcStartDate" onchange="syncPickerToText('calcStartDate'); runDateCalculator();" class="absolute right-2 opacity-0 w-6 h-6 cursor-pointer">
+                        <i onclick="triggerDatePicker('calcStartDate')" class="fa-regular fa-calendar-days text-slate-400 hover:text-violet-600 cursor-pointer absolute right-2 text-base pointer-events-none"></i>
+                    </div>
+                    <div class="flex gap-2 mt-1.5">
+                        <button onclick="setCalcToday()" class="px-2 py-0.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] rounded transition-colors">設為今天</button>
+                        <button onclick="setCalcSystemBase()" class="px-2 py-0.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] rounded transition-colors">設為系統基準日</button>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-3 pt-2">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-700 mb-1">運算動作 (Operation)</label>
+                        <select id="calcOperation" onchange="runDateCalculator()" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-violet-500 focus:outline-none bg-white">
+                            <option value="add">➕ 加上 (Add)</option>
+                            <option value="subtract">➖ 減去 (Subtract)</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-700 mb-1">調整單位 (Unit)</label>
+                        <select id="calcUnit" onchange="runDateCalculator()" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-violet-500 focus:outline-none bg-white">
+                            <option value="days">天數 (Days)</option>
+                            <option value="weeks">星期 (Weeks)</option>
+                            <option value="months" selected>月份 (Months)</option>
+                            <option value="years">年份 (Years)</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-slate-700 mb-1">數值 (Amount)</label>
+                    <div class="flex items-center gap-2">
+                        <input type="number" id="calcAmount" value="6" min="0" max="9999" oninput="runDateCalculator()" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-violet-500 focus:outline-none font-mono">
+                    </div>
+                    <div class="flex flex-wrap gap-1.5 mt-2">
+                        <span class="text-xs text-slate-500 self-center mr-1">快捷:</span>
+                        <button onclick="applyCalcPreset('months', 6)" class="px-2 py-1 bg-violet-50 hover:bg-violet-100 text-violet-700 text-xs font-semibold rounded border border-violet-200 transition-colors">6個月</button>
+                        <button onclick="applyCalcPreset('months', 12)" class="px-2 py-1 bg-violet-50 hover:bg-violet-100 text-violet-700 text-xs font-semibold rounded border border-violet-200 transition-colors">12個月(1年)</button>
+                        <button onclick="applyCalcPreset('months', 6, true)" class="px-2 py-1 bg-violet-100 hover:bg-violet-200 text-violet-800 text-xs font-semibold rounded border border-violet-300 transition-colors">6個月 -1日</button>
+                        <button onclick="applyCalcPreset('years', 1, true)" class="px-2 py-1 bg-violet-100 hover:bg-violet-200 text-violet-800 text-xs font-semibold rounded border border-violet-300 transition-colors">1年 -1日</button>
+                        <button onclick="applyCalcPreset('days', 30)" class="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs rounded border border-slate-300 transition-colors">30天</button>
+                        <button onclick="applyCalcPreset('days', 90)" class="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs rounded border border-slate-300 transition-colors">90天</button>
+                    </div>
+                </div>
+
+                <div class="bg-violet-50/60 p-3 rounded-xl border border-violet-200 space-y-1.5">
+                    <label class="flex items-center gap-2 cursor-pointer select-none">
+                        <input type="checkbox" id="calcAlignTueThu" onchange="runDateCalculator()" class="w-4 h-4 text-violet-600 rounded border-slate-300 focus:ring-violet-500">
+                        <span class="text-xs font-bold text-violet-900">自動向前對齊星期二或星期四 (MEF/約束對齊院舍審批日)</span>
+                    </label>
+                    <p class="text-[11px] text-violet-600 pl-6">勾選後，若計算出的結果為星期一、三, 五、六或日，將自動向前調整至最近的星期二或星期四。</p>
+                </div>
+
+                <div class="bg-slate-900 text-white p-4 rounded-xl shadow-inner space-y-2">
+                    <div class="flex justify-between items-center text-xs text-slate-400">
+                        <span>計算結果 (Result Date)</span>
+                        <span id="calcWeekdayBadge" class="px-2 py-0.5 rounded bg-slate-800 text-violet-300 font-mono text-[11px]">--</span>
+                    </div>
+                    <div class="flex justify-between items-center">
+                        <div class="text-2xl font-bold font-mono text-violet-300" id="calcResultDateOutput">YYYY-MM-DD</div>
+                        <button onclick="copyCalcResult()" class="px-3 py-1.5 bg-violet-600 hover:bg-violet-500 text-white text-xs font-semibold rounded-lg transition-colors flex items-center gap-1 shadow">
+                            <i class="fa-regular fa-copy"></i> 複製日期
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-slate-100 px-6 py-3 border-t border-slate-200 flex justify-end">
+                <button onclick="closeDateCalculatorModal()" class="px-4 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-lg text-xs font-semibold">關閉</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Todo & Print Modal -->
+    <div id="todoPrintModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center hidden no-print">
+        <div class="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-5xl mx-4 overflow-hidden flex flex-col max-h-[90vh]">
+            <div class="bg-sky-900 text-white px-6 py-4 flex justify-between items-center">
+                <div class="flex items-center gap-2">
+                    <i class="fa-solid fa-clipboard-list text-sky-300 text-xl"></i>
+                    <div>
+                        <h3 class="font-bold text-lg">待辦項目彙整與紙張列印報表</h3>
+                        <p class="text-xs text-sky-200">彙整近期到期項目，輕鬆列印核對紙本檔</p>
+                    </div>
+                </div>
+                <button onclick="closeTodoPrintModal()" class="text-sky-300 hover:text-white transition-colors text-lg">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+
+            <div class="p-4 bg-slate-50 border-b border-slate-200 flex flex-wrap justify-between items-center gap-3">
+                <div class="flex flex-col sm:flex-row gap-3 w-full lg:w-auto">
+                    <div class="flex items-center gap-1.5 text-xs flex-wrap">
+                        <span class="font-bold text-slate-700">時間範圍：</span>
+                        <button onclick="setTodoRange('7')" id="btnTodoRange7" class="px-2.5 py-1 rounded-lg font-semibold bg-sky-600 text-white shadow-sm">未來 7 天</button>
+                        <button onclick="setTodoRange('30')" id="btnTodoRange30" class="px-2.5 py-1 rounded-lg text-slate-600 hover:bg-slate-200">未來 30 天</button>
+                        <button onclick="setTodoRange('overdue7')" id="btnTodoRangeOverdue7" class="px-2.5 py-1 rounded-lg text-slate-600 hover:bg-slate-200">已逾期 + 未來 7 天</button>
+                        <button onclick="setTodoRange('all')" id="btnTodoRangeAll" class="px-2.5 py-1 rounded-lg text-slate-600 hover:bg-slate-200">全部待續期</button>
+                        <button onclick="setTodoRange('custom')" id="btnTodoRangeCustom" class="px-2.5 py-1 rounded-lg text-slate-600 hover:bg-slate-200 flex items-center gap-1">
+                            <i class="fa-regular fa-calendar-days"></i> 自訂日期
+                        </button>
+
+                        <div id="customDateRangeContainer" class="hidden flex items-center gap-1 bg-white px-2 py-0.5 rounded-lg border border-slate-300 shadow-sm">
+                            <span class="text-slate-500 font-normal">由</span>
+                            <input type="date" id="todoStartDate" onchange="onCustomDateChange()" class="border border-slate-200 rounded px-1.5 py-0.5 text-xs focus:outline-none focus:ring-1 focus:ring-sky-500">
+                            <span class="text-slate-500 font-normal">至</span>
+                            <input type="date" id="todoEndDate" onchange="onCustomDateChange()" class="border border-slate-200 rounded px-1.5 py-0.5 text-xs focus:outline-none focus:ring-1 focus:ring-sky-500">
+                        </div>
+                    </div>
+
+                    <div class="flex items-center gap-1.5 text-xs flex-wrap sm:border-l sm:border-slate-300 sm:pl-3">
+                        <span class="font-bold text-slate-700">報表類別：</span>
+                        <button onclick="setTodoCategory('all')" id="btnTodoCatAll" class="px-2.5 py-1 rounded-lg font-semibold bg-sky-600 text-white shadow-sm">全部</button>
+                        <button onclick="setTodoCategory('mefAndRestraint')" id="btnTodoCatMefAndRestraint" class="px-2.5 py-1 rounded-lg text-slate-600 hover:bg-slate-200">MEF及約束</button>
+                        <button onclick="setTodoCategory('ownMedication')" id="btnTodoCatOwnMedication" class="px-2.5 py-1 rounded-lg text-slate-600 hover:bg-slate-200">自購藥物</button>
+                        <button onclick="setTodoCategory('pc')" id="btnTodoCatPc" class="px-2.5 py-1 rounded-lg text-slate-600 hover:bg-slate-200">個人照顧計劃 (PC)</button>
+                        <button onclick="setTodoCategory('icp')" id="btnTodoCatIcp" class="px-2.5 py-1 rounded-lg text-slate-600 hover:bg-slate-200">ICP</button>
+                    </div>
+                </div>
+
+                <div class="flex items-center gap-2 ml-auto">
+                    <button onclick="triggerPrintFromModal()" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl shadow transition-colors flex items-center gap-1.5">
+                        <i class="fa-solid fa-print"></i> 印出此頁報表
+                    </button>
+                </div>
+            </div>
+
+            <div class="p-6 overflow-y-auto custom-scrollbar flex-grow space-y-4" id="todoModalBody">
+            </div>
+
+            <div class="bg-slate-100 px-6 py-3 border-t border-slate-200 text-right">
+                <button onclick="closeTodoPrintModal()" class="px-4 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-lg text-xs font-semibold">關閉</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Excel Export Modal -->
+    <div id="excelExportModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center hidden no-print">
+        <div class="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-lg mx-4 p-6 text-center">
+            <div class="w-14 h-14 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto mb-3 text-2xl shadow-inner">
+                <i class="fa-solid fa-file-excel"></i>
+            </div>
+            <h3 class="text-lg font-bold text-slate-900 mb-1">匯出 Excel 試算表</h3>
+            <p class="text-xs text-slate-500 mb-5 leading-relaxed">
+                請選擇欲匯出的 Excel 報表格式與內容：
+            </p>
+
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-5">
+                <button onclick="processExcelExport('MEF')" class="p-3 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 font-bold text-xs rounded-xl transition-all shadow-sm flex flex-col items-center justify-center gap-1.5">
+                    <i class="fa-solid fa-notes-medical text-xl text-emerald-600"></i>
+                    <span>MEF 體檢總覽報告</span>
+                    <span class="text-[10px] text-emerald-600 font-normal">包含房號、姓名、體檢日及 MEF 到期日</span>
+                </button>
+
+                <button onclick="processExcelExport('ICP')" class="p-3 bg-sky-50 hover:bg-sky-100 text-sky-800 border border-sky-300 font-bold text-xs rounded-xl transition-all shadow-sm flex flex-col items-center justify-center gap-1.5">
+                    <i class="fa-solid fa-clipboard-list text-xl text-sky-600"></i>
+                    <span>ICP 個人照顧計劃報告</span>
+                    <span class="text-[10px] text-sky-600 font-normal">PC / ICP 統整</span>
+                </button>
+
+                <button onclick="processExcelExport('FULL')" class="p-3 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 font-bold text-xs rounded-xl transition-all shadow-sm flex flex-col items-center justify-center gap-1.5">
+                    <i class="fa-solid fa-table text-xl text-amber-600"></i>
+                    <span>完整綜合管理總表</span>
+                    <span class="text-[10px] text-amber-600 font-normal">含所有欄位及自購藥物等數據</span>
+                </button>
+            </div>
+
+            <button onclick="closeExcelExportModal()" class="w-full py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium text-xs rounded-xl transition-colors">
+                取消
+            </button>
+        </div>
+    </div>
+
+    <!-- Startup Import Modal -->
+    <div id="startupImportModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center no-print">
+        <div class="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-md mx-4 p-6 text-center transform transition-all scale-100">
+            <div class="w-16 h-16 bg-sky-100 text-sky-600 rounded-full flex items-center justify-center mx-auto mb-4 text-2xl shadow-inner">
+                <i class="fa-solid fa-file-import"></i>
+            </div>
+            <h3 class="text-lg font-bold text-slate-900 mb-1">歡迎進入系統</h3>
+            <p class="text-xs text-slate-500 mb-6 leading-relaxed">
+                本系統已設定為<strong>不儲存於本機</strong>。請選擇匯入之前的 JSON 數據備份，或直接以空白列表開始建立資料。
+            </p>
+
+            <div class="space-y-2.5">
+                <button type="button" onclick="triggerImportJSONFromStartup()" class="w-full py-2.5 bg-sky-600 hover:bg-sky-700 text-white font-semibold text-xs rounded-xl transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer">
+                    <i class="fa-solid fa-upload"></i> 選擇 JSON 檔案匯入
+                </button>
+                <button type="button" onclick="closeStartupModal()" class="w-full py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium text-xs rounded-xl transition-colors cursor-pointer">
+                    以空白列表開啟
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Confirm Modal -->
+    <div id="confirmModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[60] flex items-center justify-center hidden no-print">
+        <div class="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-md mx-4 p-6 text-center">
+            <div id="confirmIconContainer" class="w-14 h-14 bg-amber-100 text-amber-600 rounded-full flex items-center justify-center mx-auto mb-3 text-2xl">
+                <i id="confirmIcon" class="fa-solid fa-circle-question"></i>
+            </div>
+            <h3 id="confirmTitle" class="text-lg font-bold text-slate-900 mb-2">確認操作</h3>
+            <p id="confirmMessage" class="text-xs text-slate-600 mb-6 leading-relaxed"></p>
+
+            <div class="flex gap-3 justify-center">
+                <button id="confirmCancelBtn" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl transition-colors w-1/2">取消</button>
+                <button id="confirmOkBtn" class="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white text-xs font-semibold rounded-xl transition-colors w-1/2">確定</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Resident Modal -->
+    <div id="residentModal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center hidden opacity-0 transition-opacity duration-200 no-print">
+        <div class="bg-white rounded-2xl shadow-xl border border-slate-200 w-full max-w-2xl mx-4 overflow-hidden transform scale-95 transition-transform duration-200">
+            <div class="bg-sky-900 text-white px-6 py-4 flex justify-between items-center">
+                <div class="flex items-center gap-2">
+                    <i class="fa-solid fa-user-pen text-sky-300"></i>
+                    <h3 id="modalTitle" class="font-bold text-lg">新增 / 編輯院友資料</h3>
+                </div>
+                <div class="flex items-center gap-3">
+                    <button type="button" onclick="openAuditTrailModal()" id="btnOpenAuditTrail" class="text-xs bg-sky-800 hover:bg-sky-700 px-2.5 py-1 rounded text-sky-200 transition-colors flex items-center gap-1">
+                        <i class="fa-solid fa-clock-rotate-left"></i> 異動日誌
+                    </button>
+                    <button onclick="closeResidentModal()" class="text-sky-300 hover:text-white transition-colors text-lg">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+                </div>
+            </div>
+
+            <div class="p-6 space-y-5 max-h-[75vh] overflow-y-auto custom-scrollbar">
+                <input type="hidden" id="modalResidentId">
+
+                <div class="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-3">
+                    <div class="flex justify-between items-center">
+                        <h4 class="text-xs font-bold uppercase tracking-wider text-sky-800 flex items-center gap-1.5">
+                            <i class="fa-solid fa-id-card"></i> 基本資料
+                        </h4>
+                        <div id="roomSuggestContainer" class="hidden text-xs flex items-center gap-1">
+                            <span class="text-slate-500">建議房號:</span>
+                            <button onclick="useSuggestedRoom()" type="button" id="btnSuggestedRoom" class="px-2 py-0.5 bg-sky-100 text-sky-800 hover:bg-sky-200 font-bold rounded text-xs transition-colors border border-sky-300">
+                                --
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-600 mb-1">房號 <span class="text-red-500">*</span></label>
+                            <input type="text" id="modalRoom" placeholder="例: 2C01" class="w-full border border-slate-300 rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-sky-500 focus:outline-none font-mono font-bold text-slate-800">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-600 mb-1">院友姓名 <span class="text-red-500">*</span></label>
+                            <input type="text" id="modalName" placeholder="姓名" class="w-full border border-slate-300 rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-sky-500 focus:outline-none">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-600 mb-1">入院日期</label>
+                            <div class="relative flex items-center">
+                                <input type="text" id="modalAdmissionDate" placeholder="YYYY-MM-DD" onblur="normalizeDateInput(this)" class="w-full border border-slate-300 rounded-lg pl-3 pr-8 py-1.5 text-sm focus:ring-2 focus:ring-sky-500 focus:outline-none">
+                                <input type="date" id="picker-modalAdmissionDate" onchange="syncPickerToText('modalAdmissionDate')" class="absolute right-2 opacity-0 w-6 h-6 cursor-pointer">
+                                <i onclick="triggerDatePicker('modalAdmissionDate')" class="fa-regular fa-calendar-days text-slate-400 hover:text-sky-600 cursor-pointer absolute right-2 text-sm pointer-events-none"></i>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 院友資料中的體重與身高 -->
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-slate-200">
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-600 mb-1">體重 (kg)</label>
+                            <input type="number" id="modalWeight" step="0.1" min="0" placeholder="例: 55.5" oninput="onModalHeightOrWeightChanged()" class="w-full border border-slate-300 rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-sky-500 focus:outline-none font-mono">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-600 mb-1">身高 (cm)</label>
+                            <input type="number" id="modalHeight" step="0.1" min="0" placeholder="例: 160" oninput="onModalHeightOrWeightChanged()" class="w-full border border-slate-300 rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-sky-500 focus:outline-none font-mono">
+                        </div>
+                    </div>
+
+                    <!-- 即時 BMI 狀態顯示列 -->
+                    <div id="modalBmiLiveBadge" class="hidden text-xs px-3 py-2 rounded-lg border font-medium flex items-center justify-between">
+                        <span>BMI 即時計算：<strong id="modalBmiValue" class="font-mono text-sm">--</strong></span>
+                        <span id="modalBmiStatusText" class="font-bold">--</span>
+                    </div>
+
+                    <!-- 過往體重歷史與新體重記錄功能 -->
+                    <div class="pt-3 border-t border-slate-200 space-y-2">
+                        <div class="flex justify-between items-center flex-wrap gap-2">
+                            <label class="block text-xs font-bold text-sky-900 flex items-center gap-1">
+                                <i class="fa-solid fa-weight-scale text-sky-700"></i> 過往體重記錄與對比
+                            </label>
+                            <div class="flex items-center gap-2">
+                                <span class="text-[11px] text-slate-500">記錄體重將自動對比上月數據</span>
+                                <button type="button" onclick="openSingleResidentWeightPrint()" class="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-500 text-white rounded text-xs font-semibold transition-colors flex items-center gap-1 shadow-sm" title="自選日期範圍列印此院友體重記錄">
+                                    <i class="fa-solid fa-print"></i> 列印此院友體重
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- 內嵌式體重列印日期範圍選擇 -->
+                        <div id="singleWeightPrintBox" class="hidden bg-indigo-50/80 p-3 rounded-lg border border-indigo-200 space-y-2.5">
+                            <div class="text-xs font-bold text-indigo-900 flex items-center justify-between">
+                                <span><i class="fa-solid fa-calendar-days mr-1"></i> 設定列印日期範圍</span>
+                                <button type="button" onclick="document.getElementById('singleWeightPrintBox').classList.add('hidden')" class="text-indigo-400 hover:text-indigo-700"><i class="fa-solid fa-xmark"></i></button>
+                            </div>
+                            <div class="grid grid-cols-2 gap-2">
+                                <div>
+                                    <label class="block text-[11px] text-slate-600 mb-0.5">開始日期</label>
+                                    <input type="date" id="singlePrintStartDate" class="w-full border border-slate-300 rounded px-2 py-1 text-xs bg-white font-mono">
+                                </div>
+                                <div>
+                                    <label class="block text-[11px] text-slate-600 mb-0.5">結束日期</label>
+                                    <input type="date" id="singlePrintEndDate" class="w-full border border-slate-300 rounded px-2 py-1 text-xs bg-white font-mono">
+                                </div>
+                            </div>
+                            <div class="flex justify-end gap-2 pt-1">
+                                <button type="button" onclick="executeSingleResidentWeightPrint()" class="px-3 py-1 bg-indigo-700 hover:bg-indigo-600 text-white rounded text-xs font-bold shadow-sm transition-colors flex items-center gap-1">
+                                    <i class="fa-solid fa-print"></i> 確認列印該院友範圍報表
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="flex gap-2 items-center bg-white p-2.5 rounded-lg border border-slate-200">
+                            <div class="flex-1">
+                                <input type="date" id="newWeightDate" class="w-full border border-slate-300 rounded px-2 py-1 text-xs focus:ring-1 focus:ring-sky-500 focus:outline-none font-mono">
+                            </div>
+                            <div class="w-28">
+                                <input type="number" id="newWeightVal" step="0.1" min="0" placeholder="體重 (kg)" class="w-full border border-slate-300 rounded px-2 py-1 text-xs focus:ring-1 focus:ring-sky-500 focus:outline-none font-mono">
+                            </div>
+                            <button type="button" onclick="addWeightRecord()" class="px-3 py-1 bg-sky-600 hover:bg-sky-500 text-white rounded text-xs font-semibold transition-colors shrink-0 shadow-sm">
+                                新增記錄
+                            </button>
+                        </div>
+
+                        <div id="weightComparisonNotice" class="hidden text-xs p-2 rounded-lg border font-medium"></div>
+
+                        <div class="max-h-36 overflow-y-auto custom-scrollbar border border-slate-200 rounded-lg bg-white">
+                            <table class="w-full text-left border-collapse text-xs">
+                                <thead>
+                                    <tr class="bg-slate-100 text-slate-700 font-semibold border-b border-slate-200">
+                                        <th class="py-1.5 px-2.5">記錄日期</th>
+                                        <th class="py-1.5 px-2.5 text-center">體重 (kg)</th>
+                                        <th class="py-1.5 px-2.5 text-center">與上月比較</th>
+                                        <th class="py-1.5 px-2.5 text-center w-16">操作</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="weightHistoryTableBody" class="divide-y divide-slate-100 font-mono">
+                                    <tr><td colspan="4" class="py-3 text-center text-slate-400">尚無過往體重記錄</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="space-y-3">
+                    <h4 class="text-xs font-bold uppercase tracking-wider text-sky-800 flex items-center gap-1.5">
+                        <i class="fa-regular fa-clock"></i> 評估及照顧計劃到期日設定 (Due Dates)
+                    </h4>
+
+                    <!-- MEF-A -->
+                    <div class="bg-slate-50 p-3.5 rounded-xl border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                        <div class="flex-1">
+                            <span class="font-semibold text-sm text-slate-700 block flex items-center gap-1.5">
+                                MEF-A 評估
+                                <button onclick="alignMefInputToTueThu()" type="button" class="text-[11px] font-normal text-sky-800 bg-sky-50 hover:bg-sky-100 px-1.5 py-0.5 rounded border border-sky-200 transition-colors">
+                                    <i class="fa-solid fa-wand-magic-sparkles mr-0.5"></i>對齊星期二/四
+                                </button>
+                            </span>
+                            <span id="status-mefA" class="text-xs text-slate-400"></span>
+                        </div>
+                        <div class="flex items-center gap-2 flex-wrap">
+                            <div class="relative flex items-center">
+                                <input type="text" id="input-mefA" placeholder="YYYY-MM-DD" onblur="normalizeDateInput(this, 'mefA')" oninput="onDateInputChanged('mefA')" class="border border-slate-300 rounded-lg pl-2.5 pr-8 py-1 text-sm w-36 focus:ring-2 focus:ring-sky-500 focus:outline-none">
+                                <input type="date" id="picker-input-mefA" onchange="syncPickerToText('input-mefA')" class="absolute right-1 opacity-0 w-6 h-6 cursor-pointer">
+                                <i onclick="triggerDatePicker('input-mefA')" class="fa-regular fa-calendar-days text-slate-400 hover:text-sky-600 cursor-pointer absolute right-2 text-sm pointer-events-none"></i>
+                            </div>
+                            <button onclick="quickExtend('mefA', 6)" class="px-2 py-1 bg-slate-200 hover:bg-sky-100 hover:text-sky-800 rounded text-xs font-medium transition-colors">+6月(-1日)</button>
+                            <button onclick="quickExtend('mefA', 12)" class="px-2 py-1 bg-slate-200 hover:bg-sky-100 hover:text-sky-800 rounded text-xs font-medium transition-colors">+1年(-1日)</button>
+                        </div>
+                    </div>
+
+                    <!-- Restraint -->
+                    <div class="bg-slate-50 p-3.5 rounded-xl border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                        <div class="flex-1">
+                            <span class="font-semibold text-sm text-slate-700 block flex items-center gap-1.5">
+                                <i class="fa-solid fa-lock text-slate-500"></i> 約束到期日
+                                <button onclick="alignRestraintInputToTueThu()" type="button" class="text-[11px] font-normal text-sky-800 bg-sky-50 hover:bg-sky-100 px-1.5 py-0.5 rounded border border-sky-200 transition-colors">
+                                    <i class="fa-solid fa-wand-magic-sparkles mr-0.5"></i>對齊星期二/四
+                                </button>
+                            </span>
+                            <span id="status-restraint" class="text-xs text-slate-400"></span>
+                        </div>
+                        <div class="flex items-center gap-2 flex-wrap">
+                            <div class="relative flex items-center">
+                                <input type="text" id="input-restraint" placeholder="YYYY-MM-DD" onblur="normalizeDateInput(this, 'restraint')" oninput="onDateInputChanged('restraint')" class="border border-slate-300 rounded-lg pl-2.5 pr-8 py-1 text-sm w-36 focus:ring-2 focus:ring-sky-500 focus:outline-none">
+                                <input type="date" id="picker-input-restraint" onchange="syncPickerToText('input-restraint')" class="absolute right-1 opacity-0 w-6 h-6 cursor-pointer">
+                                <i onclick="triggerDatePicker('input-restraint')" class="fa-regular fa-calendar-days text-slate-400 hover:text-sky-600 cursor-pointer absolute right-2 text-sm pointer-events-none"></i>
+                            </div>
+                            <button onclick="quickExtend('restraint', 6)" class="px-2 py-1 bg-slate-200 hover:bg-sky-100 hover:text-sky-800 rounded text-xs font-medium transition-colors">+6月(-1日)</button>
+                            <button onclick="quickExtend('restraint', 12)" class="px-2 py-1 bg-slate-200 hover:bg-sky-100 hover:text-sky-800 rounded text-xs font-medium transition-colors">+1年(-1日)</button>
+                        </div>
+                    </div>
+
+                    <!-- Own Medication -->
+                    <div class="bg-purple-50/70 p-3.5 rounded-xl border border-purple-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                        <div class="flex-1">
+                            <span class="font-semibold text-sm text-purple-950 block flex items-center gap-1.5">
+                                <i class="fa-solid fa-pills text-purple-600"></i> 自購藥物到期日
+                            </span>
+                            <span id="status-ownMedication" class="text-xs text-slate-400"></span>
+                        </div>
+                        <div class="flex items-center gap-2 flex-wrap">
+                            <div class="relative flex items-center">
+                                <input type="text" id="input-ownMedication" placeholder="YYYY-MM-DD" onblur="normalizeDateInput(this, 'ownMedication')" oninput="onDateInputChanged('ownMedication')" class="border border-purple-300 rounded-lg pl-2.5 pr-8 py-1 text-sm w-36 focus:ring-2 focus:ring-purple-500 focus:outline-none">
+                                <input type="date" id="picker-input-ownMedication" onchange="syncPickerToText('input-ownMedication')" class="absolute right-1 opacity-0 w-6 h-6 cursor-pointer">
+                                <i onclick="triggerDatePicker('input-ownMedication')" class="fa-regular fa-calendar-days text-purple-400 hover:text-purple-600 cursor-pointer absolute right-2 text-sm pointer-events-none"></i>
+                            </div>
+                            <button onclick="quickExtend('ownMedication', 6)" class="px-2 py-1 bg-purple-100 hover:bg-purple-200 hover:text-purple-900 text-purple-800 rounded text-xs font-medium transition-colors">+6月(-1日)</button>
+                            <button onclick="quickExtend('ownMedication', 12)" class="px-2 py-1 bg-purple-100 hover:bg-purple-200 hover:text-purple-900 text-purple-800 rounded text-xs font-medium transition-colors">+1年(-1日)</button>
+                        </div>
+                    </div>
+
+                    <!-- Personal Care -->
+                    <div class="bg-slate-50 p-3.5 rounded-xl border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                        <div class="flex-1">
+                            <span class="font-semibold text-sm text-slate-700 block">個人照顧計劃 (PC)</span>
+                            <span id="status-personalCare" class="text-xs text-slate-400"></span>
+                        </div>
+                        <div class="flex items-center gap-2 flex-wrap">
+                            <div class="relative flex items-center">
+                                <input type="text" id="input-personalCare" placeholder="YYYY-MM-DD" onblur="normalizeDateInput(this, 'personalCare')" oninput="onDateInputChanged('personalCare')" class="border border-slate-300 rounded-lg pl-2.5 pr-8 py-1 text-sm w-36 focus:ring-2 focus:ring-sky-500 focus:outline-none">
+                                <input type="date" id="picker-input-personalCare" onchange="syncPickerToText('input-personalCare')" class="absolute right-1 opacity-0 w-6 h-6 cursor-pointer">
+                                <i onclick="triggerDatePicker('input-personalCare')" class="fa-regular fa-calendar-days text-slate-400 hover:text-sky-600 cursor-pointer absolute right-2 text-sm pointer-events-none"></i>
+                            </div>
+                            <button onclick="quickExtend('personalCare', 6)" class="px-2 py-1 bg-slate-200 hover:bg-sky-100 hover:text-sky-800 rounded text-xs font-medium transition-colors">+6月(-1日)</button>
+                            <button onclick="quickExtend('personalCare', 12)" class="px-2 py-1 bg-slate-200 hover:bg-sky-100 hover:text-sky-800 rounded text-xs font-medium transition-colors">+1年(-1日)</button>
+                        </div>
+                    </div>
+
+                    <!-- ICP Nurse -->
+                    <div class="bg-slate-50 p-3.5 rounded-xl border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                        <div class="flex-1">
+                            <span class="font-semibold text-sm text-slate-700 block">ICP 護士</span>
+                            <span id="status-icpNurse" class="text-xs text-slate-400"></span>
+                        </div>
+                        <div class="flex items-center gap-2 flex-wrap">
+                            <div class="relative flex items-center">
+                                <input type="text" id="input-icpNurse" placeholder="YYYY-MM-DD" onblur="normalizeDateInput(this, 'icpNurse')" oninput="onDateInputChanged('icpNurse')" class="border border-slate-300 rounded-lg pl-2.5 pr-8 py-1 text-sm w-36 focus:ring-2 focus:ring-sky-500 focus:outline-none">
+                                <input type="date" id="picker-input-icpNurse" onchange="syncPickerToText('input-icpNurse')" class="absolute right-1 opacity-0 w-6 h-6 cursor-pointer">
+                                <i onclick="triggerDatePicker('input-icpNurse')" class="fa-regular fa-calendar-days text-slate-400 hover:text-sky-600 cursor-pointer absolute right-2 text-sm pointer-events-none"></i>
+                            </div>
+                            <button onclick="quickExtend('icpNurse', 6)" class="px-2 py-1 bg-slate-200 hover:bg-sky-100 hover:text-sky-800 rounded text-xs font-medium transition-colors">+6月(-1日)</button>
+                            <button onclick="quickExtend('icpNurse', 12)" class="px-2 py-1 bg-slate-200 hover:bg-sky-100 hover:text-sky-800 rounded text-xs font-medium transition-colors">+1年(-1日)</button>
+                        </div>
+                    </div>
+
+                    <!-- ICP SW -->
+                    <div class="bg-slate-50 p-3.5 rounded-xl border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                        <div class="flex-1">
+                            <span class="font-semibold text-sm text-slate-700 block">ICP 社工</span>
+                            <span id="status-icpSw" class="text-xs text-slate-400"></span>
+                        </div>
+                        <div class="flex items-center gap-2 flex-wrap">
+                            <div class="relative flex items-center">
+                                <input type="text" id="input-icpSw" placeholder="YYYY-MM-DD" onblur="normalizeDateInput(this, 'icpSw')" oninput="onDateInputChanged('icpSw')" class="border border-slate-300 rounded-lg pl-2.5 pr-8 py-1 text-sm w-36 focus:ring-2 focus:ring-sky-500 focus:outline-none">
+                                <input type="date" id="picker-input-icpSw" onchange="syncPickerToText('input-icpSw')" class="absolute right-1 opacity-0 w-6 h-6 cursor-pointer">
+                                <i onclick="triggerDatePicker('input-icpSw')" class="fa-regular fa-calendar-days text-slate-400 hover:text-sky-600 cursor-pointer absolute right-2 text-sm pointer-events-none"></i>
+                            </div>
+                            <button onclick="quickExtend('icpSw', 6)" class="px-2 py-1 bg-slate-200 hover:bg-sky-100 hover:text-sky-800 rounded text-xs font-medium transition-colors">+6月(-1日)</button>
+                            <button onclick="quickExtend('icpSw', 12)" class="px-2 py-1 bg-slate-200 hover:bg-sky-100 hover:text-sky-800 rounded text-xs font-medium transition-colors">+1年(-1日)</button>
+                        </div>
+                    </div>
+
+                    <!-- ICP PT -->
+                    <div class="bg-slate-50 p-3.5 rounded-xl border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                        <div class="flex-1">
+                            <span class="font-semibold text-sm text-slate-700 block">ICP 物理治療</span>
+                            <span id="status-icpPt" class="text-xs text-slate-400"></span>
+                        </div>
+                        <div class="flex items-center gap-2 flex-wrap">
+                            <div class="relative flex items-center">
+                                <input type="text" id="input-icpPt" placeholder="YYYY-MM-DD" onblur="normalizeDateInput(this, 'icpPt')" oninput="onDateInputChanged('icpPt')" class="border border-slate-300 rounded-lg pl-2.5 pr-8 py-1 text-sm w-36 focus:ring-2 focus:ring-sky-500 focus:outline-none">
+                                <input type="date" id="picker-input-icpPt" onchange="syncPickerToText('input-icpPt')" class="absolute right-1 opacity-0 w-6 h-6 cursor-pointer">
+                                <i onclick="triggerDatePicker('input-icpPt')" class="fa-regular fa-calendar-days text-slate-400 hover:text-sky-600 cursor-pointer absolute right-2 text-sm pointer-events-none"></i>
+                            </div>
+                            <button onclick="quickExtend('icpPt', 6)" class="px-2 py-1 bg-slate-200 hover:bg-sky-100 hover:text-sky-800 rounded text-xs font-medium transition-colors">+6月(-1日)</button>
+                            <button onclick="quickExtend('icpPt', 12)" class="px-2 py-1 bg-slate-200 hover:bg-sky-100 hover:text-sky-800 rounded text-xs font-medium transition-colors">+1年(-1日)</button>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+
+            <div class="bg-slate-100 px-6 py-3.5 flex justify-between items-center border-t border-slate-200">
+                <div>
+                    <button id="btnDeleteResident" onclick="deleteCurrentResident()" class="px-3.5 py-2 bg-rose-100 hover:bg-rose-200 text-rose-700 rounded-lg text-xs font-semibold transition-colors flex items-center gap-1.5 hidden">
+                        <i class="fa-solid fa-trash-can"></i> 刪除院友
+                    </button>
+                </div>
+                <div class="flex gap-2">
+                    <button onclick="closeResidentModal()" class="px-4 py-2 border border-slate-300 rounded-lg text-slate-700 text-xs font-medium hover:bg-slate-200 transition-colors">取消</button>
+                    <button onclick="saveResidentChanges()" class="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-lg text-xs font-medium transition-colors shadow-sm">儲存數據</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ======= Constants & Field Mappings =======
+        const ASSESSMENT_FIELDS = [
+            { key: 'mefA', label: 'MEF-A 評估' },
+            { key: 'restraint', label: '約束到期日' },
+            { key: 'ownMedication', label: '自購藥物到期日' },
+            { key: 'personalCare', label: '個人照顧計劃 (PC)' },
+            { key: 'icpNurse', label: 'ICP 護士' },
+            { key: 'icpSw', label: 'ICP 社工' },
+            { key: 'icpPt', label: 'ICP 物理治療' }
+        ];
+
+        // Global State (純記憶體運作)
+        let residentsData = [];
+        let selectedResidentIds = new Set();
+        let currentFilterRisk = 'all';
+        let currentViewMode = 'table'; // 'table' | 'grid'
+        let modifiedRangeActive = false; // 是否啟用修改日期範圍篩選
+        let modifiedStartDateVal = '';
+        let modifiedEndDateVal = '';
+        
+        // 排序設定 (支援房號或任意日期欄位，並可切換 asc / desc)
+        let currentSortField = 'room'; // 'room' 或對應的日期欄位
+        let currentSortDirection = 'asc'; // 'asc' (順序/近至遠) 或 'desc' (倒序/遠至近)
+
+        let isUserEditingBaseDate = false;
+        let baseDateStr = getNowDateTimeString();
+        let hasExportedOrClosed = false;
+        let todoRangeFilter = '7';
+        let todoCategoryFilter = 'all';
+        let isDataChanged = false;
+        let currentFileHandle = null;
+        window._tempLastMefUpdateDate = null;
+
+        function getNowDateTimeString() {
+            const now = new Date();
+            const pad = num => String(num).padStart(2, '0');
+            return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+        }
+
+        // ======= Toast Notifications =======
+        function showToast(message, type = 'info', duration = 3000) {
+            const container = document.getElementById('toastContainer');
+            if (!container) return;
+
+            const toast = document.createElement('div');
+
+            const typeStyles = {
+                success: { bg: 'bg-emerald-900/95 border-emerald-700 text-emerald-50', icon: 'fa-circle-check text-emerald-300' },
+                error: { bg: 'bg-rose-900/95 border-rose-700 text-rose-50', icon: 'fa-circle-xmark text-rose-300' },
+                warning: { bg: 'bg-amber-900/95 border-amber-700 text-amber-50', icon: 'fa-triangle-exclamation text-amber-300' },
+                custom: { bg: 'bg-teal-900/95 border-teal-700 text-teal-50', icon: 'fa-weight-scale text-teal-300' },
+                default: { bg: 'bg-slate-800 border-slate-700 text-white', icon: 'fa-circle-info text-sky-400' }
+            };
+
+            const style = ['indigo', 'violet', 'teal', 'sky', 'purple'].includes(type) ? typeStyles.custom : (typeStyles[type] || typeStyles.default);
+
+            toast.className = `toast-animate pointer-events-auto flex items-center justify-between gap-3 p-3.5 rounded-xl shadow-lg border text-xs font-semibold ${style.bg} transition-all`;
+            toast.innerHTML = `
+                <div class="flex items-center gap-2.5">
+                    <i class="fa-solid ${style.icon} text-base shrink-0"></i>
+                    <span>${message}</span>
+                </div>
+                <button onclick="this.parentElement.remove()" class="text-white/70 hover:text-white transition-colors ml-2">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            `;
+
+            container.appendChild(toast);
+
+            setTimeout(() => {
+                if (toast.parentElement) {
+                    toast.style.opacity = '0';
+                    toast.style.transform = 'translateY(-10px)';
+                    setTimeout(() => toast.remove(), 200);
+                }
+            }, duration);
+        }
+
+        // ======= Custom Confirm Modal =======
+        let onConfirmAction = null;
+
+        function showConfirmModal({ title = '確認操作', message = '', confirmText = '確定', isDanger = false, onConfirm }) {
+            const modal = document.getElementById('confirmModal');
+            document.getElementById('confirmTitle').textContent = title;
+            document.getElementById('confirmMessage').textContent = message;
+
+            const okBtn = document.getElementById('confirmOkBtn');
+            const cancelBtn = document.getElementById('confirmCancelBtn');
+            const iconContainer = document.getElementById('confirmIconContainer');
+            const icon = document.getElementById('confirmIcon');
+
+            okBtn.textContent = confirmText;
+
+            if (isDanger) {
+                okBtn.className = 'px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold rounded-xl transition-colors w-1/2 shadow-sm';
+                iconContainer.className = 'w-14 h-14 bg-rose-100 text-rose-600 rounded-full flex items-center justify-center mx-auto mb-3 text-2xl';
+                icon.className = 'fa-solid fa-trash-can';
+            } else {
+                okBtn.className = 'px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white text-xs font-semibold rounded-xl transition-colors w-1/2 shadow-sm';
+                iconContainer.className = 'w-14 h-14 bg-sky-100 text-sky-600 rounded-full flex items-center justify-center mx-auto mb-3 text-2xl';
+                icon.className = 'fa-solid fa-circle-question';
+            }
+
+            onConfirmAction = onConfirm;
+
+            okBtn.onclick = () => {
+                modal.classList.add('hidden');
+                if (typeof onConfirmAction === 'function') onConfirmAction();
+            };
+
+            cancelBtn.onclick = () => modal.classList.add('hidden');
+            modal.classList.remove('hidden');
+        }
+
+        // ======= 記錄歷史異動 Audit Trail =======
+        function logAssessmentAuditTrail(residentObj, actionType, fieldName, oldVal, newVal) {
+            if (!residentObj.auditTrail) residentObj.auditTrail = [];
+            const timestamp = new Date().toISOString().replace('T', ' ').substring(0, 19);
+            residentObj.auditTrail.unshift({
+                timestamp,
+                actionType,
+                fieldName,
+                oldVal: oldVal || '未設定',
+                newVal: newVal || '未設定'
+            });
+        }
+
+        function openAuditTrailModal() {
+            const resId = document.getElementById('modalResidentId').value;
+            if (!resId) return;
+            const res = residentsData.find(r => r.id == resId);
+            if (!res) return;
+
+            document.getElementById('auditModalTitle').textContent = `院友「${res.name} (${res.room})」歷史異動紀錄`;
+            const body = document.getElementById('auditTrailModalBody');
+
+            if (!res.auditTrail || res.auditTrail.length === 0) {
+                body.innerHTML = `<div class="py-12 text-center text-slate-400"><i class="fa-solid fa-history text-3xl mb-2"></i><p class="text-xs">目前無評估變更歷史紀錄</p></div>`;
+            } else {
+                const itemsHtml = res.auditTrail.map(log => `
+                    <div class="bg-slate-50 p-3 rounded-xl border border-slate-200 text-xs space-y-1">
+                        <div class="flex justify-between items-center">
+                            <span class="font-bold text-slate-800">${log.fieldName} (${log.actionType})</span>
+                            <span class="text-[10px] font-mono text-slate-400">${log.timestamp}</span>
+                        </div>
+                        <div class="text-slate-600 font-mono text-[11px] flex items-center gap-2">
+                            <span class="line-through text-slate-400">${log.oldVal}</span>
+                            <i class="fa-solid fa-arrow-right text-[10px] text-sky-600"></i>
+                            <span class="font-bold text-sky-900">${log.newVal}</span>
+                        </div>
+                    </div>
+                `).join('');
+                body.innerHTML = itemsHtml;
+            }
+
+            document.getElementById('auditTrailModal').classList.remove('hidden');
+        }
+
+        function closeAuditTrailModal() {
+            document.getElementById('auditTrailModal')?.classList.add('hidden');
+        }
+
+        // ======= 獨立修改記錄查找功能 Modal 邏輯 =======
+        function openModifiedSearchModal() {
+            const modal = document.getElementById('modifiedSearchModal');
+            if (modal) {
+                const today = new Date().toISOString().split('T')[0];
+                if (!document.getElementById('modalModStartDate').value) document.getElementById('modalModStartDate').value = today;
+                if (!document.getElementById('modalModEndDate').value) document.getElementById('modalModEndDate').value = today;
+                modal.classList.remove('hidden');
+            }
+        }
+
+        function closeModifiedSearchModal() {
+            document.getElementById('modifiedSearchModal')?.classList.add('hidden');
+        }
+
+        function setModalModPreset(type) {
+            const today = new Date();
+            const todayStr = today.toISOString().split('T')[0];
+
+            if (type === 'today') {
+                document.getElementById('modalModStartDate').value = todayStr;
+                document.getElementById('modalModEndDate').value = todayStr;
+            } else if (type === '7days') {
+                const past = new Date(today);
+                past.setDate(past.getDate() - 7);
+                document.getElementById('modalModStartDate').value = past.toISOString().split('T')[0];
+                document.getElementById('modalModEndDate').value = todayStr;
+            } else if (type === 'thisMonth') {
+                const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
+                document.getElementById('modalModStartDate').value = firstDay.toISOString().split('T')[0];
+                document.getElementById('modalModEndDate').value = todayStr;
+            }
+        }
+
+        function applyModifiedSearchModal() {
+            modifiedStartDateVal = document.getElementById('modalModStartDate').value;
+            modifiedEndDateVal = document.getElementById('modalModEndDate').value;
+
+            if (!modifiedStartDateVal && !modifiedEndDateVal) {
+                showToast('請選擇完整的開始與結束日期！', 'warning');
+                return;
+            }
+
+            modifiedRangeActive = true;
+            closeModifiedSearchModal();
+
+            const noticeBox = document.getElementById('activeFilterNotice');
+            const noticeText = document.getElementById('activeFilterText');
+            if (noticeBox && noticeText) {
+                noticeText.textContent = `目前正在查找修改日期範圍：${modifiedStartDateVal || '不限'} 至 ${modifiedEndDateVal || '不限'}`;
+                noticeBox.classList.remove('hidden');
+            }
+
+            renderMainView();
+            showToast('已套用指定修改日期範圍查找', 'purple');
+        }
+
+        function resetAndClearModifiedSearch() {
+            document.getElementById('modalModStartDate').value = '';
+            document.getElementById('modalModEndDate').value = '';
+            clearModifiedDateRange();
+            closeModifiedSearchModal();
+        }
+
+        function clearModifiedDateRange() {
+            modifiedRangeActive = false;
+            modifiedStartDateVal = '';
+            modifiedEndDateVal = '';
+            document.getElementById('activeFilterNotice')?.classList.add('hidden');
+            renderMainView();
+            showToast('已重設修改日期查找條件', 'info');
+        }
+
+        // ======= 視圖切換 (Table vs Grid Dashboard) =======
+        function switchViewMode(mode) {
+            currentViewMode = mode;
+            const btnTable = document.getElementById('btnViewTable');
+            const btnGrid = document.getElementById('btnViewGrid');
+            const tableView = document.getElementById('tableViewContainer');
+            const gridView = document.getElementById('gridViewContainer');
+
+            if (mode === 'table') {
+                btnTable.className = 'px-3 py-1.5 rounded-md bg-white text-sky-800 shadow-sm transition-all flex items-center gap-1 font-bold';
+                btnGrid.className = 'px-3 py-1.5 rounded-md text-slate-600 hover:text-slate-900 transition-all flex items-center gap-1 font-normal';
+                tableView.classList.remove('hidden');
+                gridView.classList.add('hidden');
+            } else {
+                btnGrid.className = 'px-3 py-1.5 rounded-md bg-white text-sky-800 shadow-sm transition-all flex items-center gap-1 font-bold';
+                btnTable.className = 'px-3 py-1.5 rounded-md text-slate-600 hover:text-slate-900 transition-all flex items-center gap-1 font-normal';
+                gridView.classList.remove('hidden');
+                tableView.classList.add('hidden');
+            }
+            renderMainView();
+        }
+
+        function renderMainView() {
+            if (currentViewMode === 'table') renderTable();
+            else renderGridDashboard();
+        }
+
+        // ======= 統一排序與資料對照邏輯 =======
+        function setSortMode(field) {
+            if (currentSortField === field) {
+                currentSortDirection = currentSortDirection === 'asc' ? 'desc' : 'asc';
+            } else {
+                currentSortField = field;
+                currentSortDirection = 'asc'; // 預設由近至遠
+            }
+            updatePrimarySortUI();
+            renderMainView();
+            const directionLabel = currentSortDirection === 'asc' ? '順序 (近至遠)' : '倒序 (遠至近)';
+            showToast(`已切換排序：${field} (${directionLabel})`, 'info');
+        }
+
+        function togglePrimarySort() {
+            if (currentSortField === 'room') {
+                currentSortDirection = currentSortDirection === 'asc' ? 'desc' : 'asc';
+            } else {
+                currentSortField = 'room';
+                currentSortDirection = 'asc';
+            }
+            updatePrimarySortUI();
+            renderMainView();
+        }
+
+        function updatePrimarySortUI() {
+            const btnText = document.getElementById('primarySortText');
+            const icon = document.getElementById('primarySortIcon');
+            const thIcon = document.getElementById('thPrimarySortIcon');
+
+            // 清除 Table 所有日期標頭圖示狀態
+            const allSortKeys = ['admissionDate', 'mefA', 'restraint', 'ownMedication', 'personalCare', 'icpNurse', 'icpSw', 'icpPt'];
+            allSortKeys.forEach(k => {
+                const el = document.getElementById(`sortIcon-${k}`);
+                if (el) el.className = 'fa-solid fa-sort text-xs text-slate-400';
+            });
+            
+            if (currentSortField === 'room') {
+                if (currentSortDirection === 'asc') {
+                    btnText.textContent = '按房號順序 (近至遠)';
+                    icon.className = 'fa-solid fa-arrow-down-1-9 text-sky-700';
+                    if (thIcon) thIcon.className = 'fa-solid fa-sort-up text-sky-800';
+                } else {
+                    btnText.textContent = '按房號倒序 (遠至近)';
+                    icon.className = 'fa-solid fa-arrow-down-9-1 text-sky-700';
+                    if (thIcon) thIcon.className = 'fa-solid fa-sort-down text-sky-800';
+                }
+            } else {
+                if (thIcon) thIcon.className = 'fa-solid fa-sort text-sky-600';
+                const fieldLabels = {
+                    admissionDate: '入院日期',
+                    mefA: 'MEF-A',
+                    restraint: '約束',
+                    ownMedication: '自購藥物',
+                    personalCare: 'PC',
+                    icpNurse: 'ICP護士',
+                    icpSw: 'ICP社工',
+                    icpPt: 'ICP物理治療'
+                };
+                const name = fieldLabels[currentSortField] || currentSortField;
+                const dirStr = currentSortDirection === 'asc' ? '順序(近至遠)' : '倒序(遠至近)';
+                btnText.textContent = `按${name} ${dirStr}`;
+                icon.className = currentSortDirection === 'asc' ? 'fa-solid fa-arrow-up-short-wide text-sky-700' : 'fa-solid fa-arrow-down-wide-short text-sky-700';
+
+                // 更新被選中標頭圖示
+                const targetIcon = document.getElementById(`sortIcon-${currentSortField}`);
+                if (targetIcon) {
+                    targetIcon.className = currentSortDirection === 'asc' 
+                        ? 'fa-solid fa-sort-up text-xs text-sky-700 font-bold' 
+                        : 'fa-solid fa-sort-down text-xs text-sky-700 font-bold';
+                }
+            }
+        }
+
+        function getSortedResidents() {
+            return [...residentsData].sort((a, b) => {
+                if (currentSortField === 'room') {
+                    const cmp = naturalRoomCompare(a.room, b.room);
+                    return currentSortDirection === 'asc' ? cmp : -cmp;
+                } else {
+                    let valA = '';
+                    let valB = '';
+
+                    if (currentSortField === 'admissionDate') {
+                        valA = a.admissionDate || '';
+                        valB = b.admissionDate || '';
+                    } else {
+                        valA = a[currentSortField] ? a[currentSortField].date || '' : '';
+                        valB = b[currentSortField] ? b[currentSortField].date || '' : '';
+                    }
+
+                    if (!valA && !valB) return 0;
+                    if (!valA) return 1; // 沒填寫的排在最後
+                    if (!valB) return -1;
+
+                    const cmp = valA.localeCompare(valB);
+                    return currentSortDirection === 'asc' ? cmp : -cmp;
+                }
+            });
+        }
+
+        // ======= 指定日期修改過資料判斷邏輯 =======
+        function isResidentModifiedInRange(res, startDateStr, endDateStr) {
+            if (!startDateStr && !endDateStr) return true;
+
+            const start = startDateStr ? new Date(startDateStr) : new Date('1970-01-01');
+            const end = endDateStr ? new Date(endDateStr) : new Date('2099-12-31');
+            start.setHours(0, 0, 0, 0);
+            end.setHours(23, 59, 59, 999);
+
+            // 檢查 MEF 專屬 updateDate
+            if (res.mefA && res.mefA.updateDate) {
+                const d = new Date(res.mefA.updateDate);
+                if (d >= start && d <= end) return true;
+            }
+
+            // 檢查 auditTrail 日誌
+            if (res.auditTrail && res.auditTrail.length > 0) {
+                for (let log of res.auditTrail) {
+                    if (log.timestamp) {
+                        const d = new Date(log.timestamp.replace(' ', 'T'));
+                        if (d >= start && d <= end) return true;
+                    }
+                }
+            }
+
+            return false;
+        }
+
+        // 判斷特定評估項目是否在修改日期範圍內變更過
+        function isFieldModifiedInRange(res, fieldKey, startDateStr, endDateStr) {
+            if (!modifiedRangeActive || (!startDateStr && !endDateStr)) return false;
+
+            const start = startDateStr ? new Date(startDateStr) : new Date('1970-01-01');
+            const end = endDateStr ? new Date(endDateStr) : new Date('2099-12-31');
+            start.setHours(0, 0, 0, 0);
+            end.setHours(23, 59, 59, 999);
+
+            const fieldLabelsMap = {
+                mefA: 'MEF-A',
+                restraint: '約束',
+                ownMedication: '自購藥物',
+                personalCare: '個人照顧計劃',
+                icpNurse: 'ICP護士',
+                icpSw: 'ICP社工',
+                icpPt: 'ICP物理治療'
+            };
+
+            const fieldName = fieldLabelsMap[fieldKey];
+
+            if (fieldKey === 'mefA' && res.mefA && res.mefA.updateDate) {
+                const d = new Date(res.mefA.updateDate);
+                if (d >= start && d <= end) return true;
+            }
+
+            if (res.auditTrail && res.auditTrail.length > 0) {
+                for (let log of res.auditTrail) {
+                    if (log.timestamp && log.fieldName && (log.fieldName.includes(fieldName) || log.fieldName === fieldKey)) {
+                        const d = new Date(log.timestamp.replace(' ', 'T'));
+                        if (d >= start && d <= end) return true;
+                    }
+                }
+            }
+            return false;
+        }
+
+        function renderGridDashboard() {
+            const gridContainer = document.getElementById('gridViewContainer');
+            const searchKeyword = document.getElementById('searchInput').value.trim().toLowerCase();
+            gridContainer.innerHTML = '';
+
+            let counts = { overdue: 0, today: 0, week: 0, month: 0 };
+            let visibleCount = 0;
+
+            const sortedList = getSortedResidents();
+
+            sortedList.forEach(res => {
+                const maxRisk = getResidentHighestRisk(res);
+                if (counts[maxRisk] !== undefined) counts[maxRisk]++;
+
+                const matchSearch = (res.name && res.name.toLowerCase().includes(searchKeyword)) || 
+                                    (res.room && res.room.toLowerCase().includes(searchKeyword));
+                
+                let matchFilter = true;
+                if (currentFilterRisk !== 'all') {
+                    matchFilter = currentFilterRisk === maxRisk;
+                }
+                if (modifiedRangeActive) {
+                    matchFilter = matchFilter && isResidentModifiedInRange(res, modifiedStartDateVal, modifiedEndDateVal);
+                }
+
+                if (matchSearch && matchFilter) {
+                    visibleCount++;
+                    
+                    let cardBorder = 'border-slate-200 hover:border-sky-400 bg-white';
+                    let riskBadge = '<span class="px-2 py-0.5 rounded text-[10px] bg-slate-100 text-slate-600 font-semibold">正常</span>';
+
+                    if (maxRisk === 'overdue') {
+                        cardBorder = 'border-rose-300 hover:border-rose-500 bg-rose-50/40 ring-1 ring-rose-200';
+                        riskBadge = '<span class="px-2 py-0.5 rounded text-[10px] bg-rose-100 text-rose-800 font-bold animate-pulse">🚨 有項目已逾期</span>';
+                    } else if (maxRisk === 'today') {
+                        cardBorder = 'border-amber-300 hover:border-amber-500 bg-amber-50/40';
+                        riskBadge = '<span class="px-2 py-0.5 rounded text-[10px] bg-amber-100 text-amber-800 font-bold">🔔 今日到期</span>';
+                    } else if (maxRisk === 'week') {
+                        cardBorder = 'border-orange-200 hover:border-orange-400 bg-orange-50/30';
+                        riskBadge = '<span class="px-2 py-0.5 rounded text-[10px] bg-orange-100 text-orange-800 font-semibold">⏰ 1週內到期</span>';
+                    }
+
+                    const card = document.createElement('div');
+                    card.className = `p-4 rounded-xl border shadow-sm transition-all cursor-pointer flex flex-col justify-between space-y-3 ${cardBorder}`;
+                    card.onclick = () => openResidentModal(res.id);
+
+                    card.innerHTML = `
+                        <div>
+                            <div class="flex justify-between items-start mb-1.5">
+                                <span class="font-bold text-base text-slate-800 font-mono">${res.room || '-'}</span>
+                                ${riskBadge}
+                            </div>
+                            <h4 class="font-bold text-sm text-sky-950">${res.name || '-'}</h4>
+                            <p class="text-[11px] text-slate-500 mt-0.5">入院: ${res.admissionDate || '-'}</p>
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-1 text-[11px] pt-2 border-t border-slate-100">
+                            <div><span class="text-slate-400">MEF:</span> <strong class="font-mono ${getItemRiskClass(res.mefA)}">${res.mefA?.date || '-'}</strong></div>
+                            <div><span class="text-slate-400">約束:</span> <strong class="font-mono ${getItemRiskClass(res.restraint)}">${res.restraint?.date || '-'}</strong></div>
+                            <div><span class="text-purple-600 font-semibold">藥物:</span> <strong class="font-mono ${getItemRiskClass(res.ownMedication)}">${res.ownMedication?.date || '-'}</strong></div>
+                            <div><span class="text-slate-400">PC:</span> <strong class="font-mono ${getItemRiskClass(res.personalCare)}">${res.personalCare?.date || '-'}</strong></div>
+                            <div><span class="text-slate-400">ICP:</span> <strong class="font-mono ${getItemRiskClass(res.icpNurse)}">${res.icpNurse?.date || '-'}</strong></div>
+                        </div>
+                    `;
+                    gridContainer.appendChild(card);
+                }
+            });
+
+            document.getElementById('count-overdue').textContent = counts.overdue;
+            document.getElementById('count-today').textContent = counts.today;
+            document.getElementById('count-week').textContent = counts.week;
+            document.getElementById('count-month').textContent = counts.month;
+
+            document.getElementById('emptyState')?.classList.toggle('hidden', visibleCount > 0);
+        }
+
+        function getItemRiskClass(itemObj) {
+            if (!itemObj || !itemObj.date) return 'text-slate-300';
+            const diff = getDaysDiff(itemObj.date);
+            if (diff < 0) return 'text-rose-600 font-bold';
+            if (diff === 0) return 'text-amber-600 font-bold';
+            if (diff <= 7) return 'text-orange-600';
+            return 'text-slate-700';
+        }
+
+        // ======= 單一院友身高與體重即時更新、BMI 同步計算與自動保存 =======
+        function onModalHeightOrWeightChanged() {
+            const wVal = parseFloat(document.getElementById('modalWeight').value);
+            const hVal = parseFloat(document.getElementById('modalHeight').value);
+            const badgeContainer = document.getElementById('modalBmiLiveBadge');
+            const valueEl = document.getElementById('modalBmiValue');
+            const statusEl = document.getElementById('modalBmiStatusText');
+
+            if (!wVal || !hVal || wVal <= 0 || hVal <= 0) {
+                badgeContainer?.classList.add('hidden');
+                return;
+            }
+
+            const hm = hVal / 100;
+            const bmi = (wVal / (hm * hm)).toFixed(1);
+            valueEl.textContent = bmi;
+
+            let statusText = '正常範圍';
+            let colorClass = 'bg-emerald-50 border-emerald-200 text-emerald-900';
+
+            if (bmi < 18.5) {
+                statusText = '體重過輕 (Underweight)';
+                colorClass = 'bg-sky-50 border-sky-200 text-sky-900';
+            } else if (bmi >= 24 && bmi < 27) {
+                statusText = '體重過重 (Overweight)';
+                colorClass = 'bg-amber-50 border-amber-200 text-amber-900';
+            } else if (bmi >= 27) {
+                statusText = '肥胖 (Obese)';
+                colorClass = 'bg-rose-50 border-rose-200 text-rose-900';
+            }
+
+            statusEl.textContent = statusText;
+            badgeContainer.className = `text-xs px-3 py-2 rounded-lg border font-medium flex items-center justify-between ${colorClass}`;
+            badgeContainer.classList.remove('hidden');
+
+            const idVal = document.getElementById('modalResidentId').value;
+            if (idVal) {
+                const res = residentsData.find(r => r.id == idVal);
+                if (res) {
+                    res.height = hVal;
+                    res.weight = wVal;
+                    saveData();
+                }
+            }
+        }
+
+        // ======= 單一院友體重記錄與自選日期範圍列印邏輯 =======
+        function openSingleResidentWeightPrint() {
+            const box = document.getElementById('singleWeightPrintBox');
+            if (box) {
+                box.classList.toggle('hidden');
+                if (!box.classList.contains('hidden')) {
+                    const today = new Date();
+                    const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
+                    document.getElementById('singlePrintStartDate').value = firstDay.toISOString().split('T')[0];
+                    document.getElementById('singlePrintEndDate').value = today.toISOString().split('T')[0];
+                }
+            }
+        }
+
+        function executeSingleResidentWeightPrint() {
+            const nameVal = document.getElementById('modalName').value.trim() || '未命名院友';
+            const roomVal = document.getElementById('modalRoom').value.trim() || '-';
+            const startDateStr = document.getElementById('singlePrintStartDate').value;
+            const endDateStr = document.getElementById('singlePrintEndDate').value;
+
+            if (!startDateStr || !endDateStr) {
+                showToast('請完整填寫開始與結束日期範圍！', 'warning');
+                return;
+            }
+
+            const startDate = new Date(startDateStr);
+            startDate.setHours(0,0,0,0);
+            const endDate = new Date(endDateStr);
+            endDate.setHours(23,59,59,999);
+
+            if (startDate > endDate) {
+                showToast('開始日期不能大於結束日期！', 'error');
+                return;
+            }
+
+            const history = (currentModalWeightHistory || []).filter(h => {
+                const d = new Date(h.date);
+                return d >= startDate && d <= endDate;
+            }).sort((a, b) => new Date(a.date) - new Date(b.date));
+
+            if (history.length === 0) {
+                showToast('在此日期範圍內沒有找到該院友的體重記錄！', 'warning');
+                return;
+            }
+
+            const heightVal = parseFloat(document.getElementById('modalHeight').value);
+
+            const rowsHtml = history.map(h => {
+                let bmiText = '-';
+                if (heightVal && heightVal > 0) {
+                    const hm = heightVal / 100;
+                    bmiText = `BMI: ${(h.weight / (hm * hm)).toFixed(1)}`;
+                }
+                return `
+                    <tr>
+                        <td class="border border-slate-800 p-2 text-center font-mono">${h.date}</td>
+                        <td class="border border-slate-800 p-2 text-center font-mono font-bold">${h.weight} kg</td>
+                        <td class="border border-slate-800 p-2 text-center font-mono text-[11px]">${bmiText}</td>
+                    </tr>
+                `;
+            }).join('');
+
+            document.getElementById('printableContent').innerHTML = `
+                <div class="text-center mb-6">
+                    <h2 class="text-xl font-bold">院友個人體重監察記錄表</h2>
+                    <p class="text-xs text-slate-600 mt-1">房號：${roomVal}    姓名：${nameVal}    身高：${heightVal ? heightVal + 'cm' : '-'}</p>
+                    <p class="text-xs text-slate-600 mt-0.5">日期範圍：${startDateStr} 至 ${endDateStr} | 列印日期：${new Date().toISOString().split('T')[0]}</p>
+                </div>
+                <table class="w-full border-collapse border border-slate-800 text-xs">
+                    <thead>
+                        <tr class="bg-slate-200">
+                            <th class="border border-slate-800 p-2 text-center w-1/3">記錄日期</th>
+                            <th class="border border-slate-800 p-2 text-center w-1/3">體重 (kg)</th>
+                            <th class="border border-slate-800 p-2 text-center w-1/3">BMI 狀況</th>
+                        </tr>
+                    </thead>
+                    <tbody>${rowsHtml}</tbody>
+                </table>
+            `;
+            window.print();
+        }
+
+        let currentModalWeightHistory = [];
+
+        function renderWeightHistoryTable() {
+            const tbody = document.getElementById('weightHistoryTableBody');
+            const noticeEl = document.getElementById('weightComparisonNotice');
+            if (!tbody) return;
+
+            if (!currentModalWeightHistory || currentModalWeightHistory.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="4" class="py-3 text-center text-slate-400">尚無過往體重記錄</td></tr>`;
+                noticeEl?.classList.add('hidden');
+                return;
+            }
+
+            const sorted = [...currentModalWeightHistory].sort((a, b) => new Date(a.date) - new Date(b.date));
+            
+            const rowsHtml = sorted.map((item, idx) => {
+                let diffText = '-';
+                let diffClass = 'text-slate-400';
+
+                const currentDateObj = new Date(item.date);
+                let prevRecord = null;
+
+                for (let i = idx - 1; i >= 0; i--) {
+                    const diffDays = (currentDateObj - new Date(sorted[i].date)) / (1000 * 60 * 60 * 24);
+                    if (diffDays >= 20 && diffDays <= 45) {
+                        prevRecord = sorted[i];
+                        break;
+                    }
+                }
+                if (!prevRecord && idx > 0) prevRecord = sorted[idx - 1];
+
+                if (prevRecord) {
+                    const diff = parseFloat((item.weight - prevRecord.weight).toFixed(1));
+                    if (diff > 0) {
+                        diffText = `+${diff} kg (↑)`;
+                        diffClass = 'text-amber-700 font-bold';
+                    } else if (diff < 0) {
+                        diffText = `${diff} kg (↓)`;
+                        diffClass = 'text-rose-700 font-bold';
+                    } else {
+                        diffText = `0.0 kg (-)`;
+                        diffClass = 'text-slate-600';
+                    }
+                }
+
+                return `
+                    <tr class="hover:bg-slate-50">
+                        <td class="py-2 px-2.5">${item.date}</td>
+                        <td class="py-2 px-2.5 text-center font-bold text-slate-800">${item.weight} kg</td>
+                        <td class="py-2 px-2.5 text-center ${diffClass}">${diffText}</td>
+                        <td class="py-2 px-2.5 text-center">
+                            <button type="button" onclick="removeWeightRecord(${idx})" class="text-rose-500 hover:text-rose-700 p-1" title="刪除此記錄">
+                                <i class="fa-solid fa-trash-can"></i>
+                            </button>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+
+            tbody.innerHTML = rowsHtml;
+
+            if (sorted.length > 0) {
+                const latest = sorted[sorted.length - 1];
+                document.getElementById('modalWeight').value = latest.weight;
+                onModalHeightOrWeightChanged();
+
+                let latestPrev = null;
+                for (let i = sorted.length - 2; i >= 0; i--) {
+                    const dDays = (new Date(latest.date) - new Date(sorted[i].date)) / (1000 * 60 * 60 * 24);
+                    if (dDays >= 20 && dDays <= 45) {
+                        latestPrev = sorted[i];
+                        break;
+                    }
+                }
+                if (!latestPrev && sorted.length > 1) latestPrev = sorted[sorted.length - 2];
+
+                if (latestPrev && noticeEl) {
+                    const diff = parseFloat((latest.weight - latestPrev.weight).toFixed(1));
+                    const sign = diff > 0 ? `+${diff}` : `${diff}`;
+                    const colorBg = diff > 0 ? 'bg-amber-50 border-amber-200 text-amber-900' : (diff < 0 ? 'bg-rose-50 border-rose-200 text-rose-900' : 'bg-slate-50 border-slate-200 text-slate-800');
+                    noticeEl.className = `text-xs p-2 rounded-lg border font-medium ${colorBg} flex items-center justify-between`;
+                    noticeEl.innerHTML = `
+                        <span>📊 最新體重 (${latest.date}): <strong>${latest.weight}kg</strong></span>
+                        <span>對比上月 (${latestPrev.date}: ${latestPrev.weight}kg)：<strong>${sign} kg</strong></span>
+                    `;
+                    noticeEl.classList.remove('hidden');
+                } else {
+                    noticeEl?.classList.add('hidden');
+                }
+            }
+        }
+
+        function addWeightRecord() {
+            const dateVal = document.getElementById('newWeightDate').value;
+            const weightVal = document.getElementById('newWeightVal').value;
+
+            if (!dateVal || !weightVal) {
+                showToast('請填寫完整的體重記錄日期與數值！', 'warning');
+                return;
+            }
+
+            const w = parseFloat(weightVal);
+            if (isNaN(w) || w <= 0) {
+                showToast('請輸入有效的體重數值', 'error');
+                return;
+            }
+
+            if (!currentModalWeightHistory) currentModalWeightHistory = [];
+            currentModalWeightHistory.push({ date: dateVal, weight: w });
+            document.getElementById('newWeightVal').value = '';
+            renderWeightHistoryTable();
+            showToast('已新增體重記錄', 'success');
+        }
+
+        function removeWeightRecord(index) {
+            const sorted = [...currentModalWeightHistory].sort((a, b) => new Date(a.date) - new Date(b.date));
+            const target = sorted[index];
+            currentModalWeightHistory = currentModalWeightHistory.filter(item => !(item.date === target.date && item.weight === target.weight));
+            renderWeightHistoryTable();
+            showToast('已刪除該筆體重記錄', 'info');
+        }
+
+        // ======= Independent BMI Calculator Logic =======
+        function openBmiCalculatorModal() {
+            const modal = document.getElementById('bmiCalculatorModal');
+            if (modal) {
+                populateBmiResidentDropdown();
+                document.getElementById('standaloneBmiWeight').value = '';
+                document.getElementById('standaloneBmiHeight').value = '';
+                document.getElementById('standaloneBmiOutput').textContent = '--';
+                const badge = document.getElementById('standaloneBmiBadge');
+                badge.textContent = '尚未計算';
+                badge.className = 'text-xs px-2.5 py-1 rounded-full border bg-white text-slate-500 border-slate-300 inline-block font-semibold';
+                modal.classList.remove('hidden');
+            }
+        }
+
+        function closeBmiCalculatorModal() {
+            document.getElementById('bmiCalculatorModal')?.classList.add('hidden');
+        }
+
+        function populateBmiResidentDropdown() {
+            const selectEl = document.getElementById('bmiResidentSelect');
+            if (!selectEl) return;
+            selectEl.innerHTML = '<option value="">-- 手動輸入身高體重 --</option>';
+
+            residentsData.forEach(res => {
+                const opt = document.createElement('option');
+                opt.value = res.id;
+                opt.textContent = `房號: ${res.room || '-'} | 姓名: ${res.name || '-'}`;
+                selectEl.appendChild(opt);
+            });
+        }
+
+        function loadResidentBmiData() {
+            const resId = document.getElementById('bmiResidentSelect').value;
+            if (!resId) {
+                document.getElementById('standaloneBmiWeight').value = '';
+                document.getElementById('standaloneBmiHeight').value = '';
+                runStandaloneBmiCalc();
+                return;
+            }
+
+            const res = residentsData.find(r => r.id == resId);
+            if (res) {
+                document.getElementById('standaloneBmiWeight').value = res.weight || '';
+                document.getElementById('standaloneBmiHeight').value = res.height || '';
+                runStandaloneBmiCalc();
+            }
+        }
+
+        function runStandaloneBmiCalc() {
+            const w = parseFloat(document.getElementById('standaloneBmiWeight').value);
+            const h = parseFloat(document.getElementById('standaloneBmiHeight').value);
+            const outputEl = document.getElementById('standaloneBmiOutput');
+            const badgeEl = document.getElementById('standaloneBmiBadge');
+
+            if (!w || !h || w <= 0 || h <= 0) {
+                outputEl.textContent = '--';
+                badgeEl.textContent = '尚未計算';
+                badgeEl.className = 'text-xs px-2.5 py-1 rounded-full border bg-white text-slate-500 border-slate-300 inline-block font-semibold';
+                return;
+            }
+
+            const bmi = w / Math.pow(h / 100, 2);
+            outputEl.textContent = bmi.toFixed(1);
+
+            let statusText = '正常範圍';
+            let badgeClass = 'bg-emerald-100 text-emerald-800 border-emerald-300';
+
+            if (bmi < 18.5) {
+                statusText = '體重過輕';
+                badgeClass = 'bg-sky-100 text-sky-800 border-sky-300';
+            } else if (bmi >= 24 && bmi < 27) {
+                statusText = '體重過重';
+                badgeClass = 'bg-amber-100 text-amber-800 border-amber-300';
+            } else if (bmi >= 27) {
+                statusText = '肥胖體位';
+                badgeClass = 'bg-rose-100 text-rose-800 border-rose-300';
+            }
+
+            badgeEl.textContent = statusText;
+            badgeEl.className = `text-xs px-2.5 py-1 rounded-full border inline-block font-bold ${badgeClass}`;
+        }
+
+        // ======= Date Calculator Logic =======
+        function openDateCalculatorModal() {
+            const modal = document.getElementById('dateCalculatorModal');
+            if (modal) {
+                const todayStr = new Date().toISOString().split('T')[0];
+                const input = document.getElementById('calcStartDate');
+                const picker = document.getElementById('picker-calcStartDate');
+                if (input && !input.value) {
+                    input.value = todayStr;
+                    if (picker) picker.value = todayStr;
+                }
+                modal.classList.remove('hidden');
+                runDateCalculator();
+            }
+        }
+
+        function closeDateCalculatorModal() {
+            document.getElementById('dateCalculatorModal')?.classList.add('hidden');
+        }
+
+        function setCalcToday() {
+            const todayStr = new Date().toISOString().split('T')[0];
+            document.getElementById('calcStartDate').value = todayStr;
+            document.getElementById('picker-calcStartDate').value = todayStr;
+            runDateCalculator();
+        }
+
+        function setCalcSystemBase() {
+            const datePart = baseDateStr.split('T')[0];
+            document.getElementById('calcStartDate').value = datePart;
+            document.getElementById('picker-calcStartDate').value = datePart;
+            runDateCalculator();
+        }
+
+        function applyCalcPreset(unit, amount, subtractOneDay = false) {
+            document.getElementById('calcUnit').value = unit;
+            document.getElementById('calcAmount').value = amount;
+            document.getElementById('calcOperation').value = 'add';
+            runDateCalculator();
+        }
+
+        function runDateCalculator() {
+            const startStr = document.getElementById('calcStartDate').value.trim();
+            const operation = document.getElementById('calcOperation').value;
+            const unit = document.getElementById('calcUnit').value;
+            const amountVal = parseFloat(document.getElementById('calcAmount').value);
+            const alignTueThu = document.getElementById('calcAlignTueThu').checked;
+            
+            const outputEl = document.getElementById('calcResultDateOutput');
+            const weekdayBadge = document.getElementById('calcWeekdayBadge');
+
+            if (!startStr) {
+                outputEl.textContent = '請選擇或輸入起始日期';
+                weekdayBadge.textContent = '--';
+                return;
+            }
+
+            const parsedStart = parseAndFormatDate(startStr);
+            const d = new Date(parsedStart);
+            if (isNaN(d.getTime())) {
+                outputEl.textContent = '日期格式錯誤';
+                weekdayBadge.textContent = '--';
+                return;
+            }
+
+            const multiplier = operation === 'add' ? 1 : -1;
+            const val = isNaN(amountVal) ? 0 : amountVal * multiplier;
+
+            if (unit === 'days') d.setDate(d.getDate() + val);
+            else if (unit === 'weeks') d.setDate(d.getDate() + (val * 7));
+            else if (unit === 'months') d.setMonth(d.getMonth() + val);
+            else if (unit === 'years') d.setFullYear(d.getFullYear() + val);
+
+            if (alignTueThu) adjustToTuesdayOrThursday(d);
+
+            outputEl.textContent = d.toISOString().split('T')[0];
+            const weekdays = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六'];
+            weekdayBadge.textContent = weekdays[d.getDay()];
+        }
+
+        function copyCalcResult() {
+            const text = document.getElementById('calcResultDateOutput').textContent;
+            if (text && text.includes('-')) {
+                navigator.clipboard.writeText(text).then(() => {
+                    showToast(`已複製計算結果日期: ${text}`, 'success');
+                }).catch(() => {
+                    const dummy = document.createElement('textarea');
+                    document.body.appendChild(dummy);
+                    dummy.value = text;
+                    dummy.select();
+                    document.execCommand('copy');
+                    document.body.removeChild(dummy);
+                    showToast(`已複製計算結果日期: ${text}`, 'success');
+                });
+            }
+        }
+
+        // ======= Tuesday / Thursday Alignment Algorithm =======
+        function adjustToTuesdayOrThursday(dateObj) {
+            let day = dateObj.getDay();
+            while (day !== 2 && day !== 4) {
+                dateObj.setDate(dateObj.getDate() - 1);
+                day = dateObj.getDay();
+            }
+            return dateObj;
+        }
+
+        function getAdjustedMefDateStr(dateStr) {
+            if (!dateStr) return '';
+            const d = new Date(dateStr);
+            if (isNaN(d.getTime())) return dateStr;
+            adjustToTuesdayOrThursday(d);
+            return d.toISOString().split('T')[0];
+        }
+
+        function parseAndFormatDate(val) {
+            if (!val) return '';
+            let raw = val.trim();
+            if (/^\d{8}$/.test(raw)) {
+                raw = `${raw.substring(0, 4)}-${raw.substring(4, 6)}-${raw.substring(6, 8)}`;
+            }
+            raw = raw.replace(/[\/\.]/g, '-');
+            const match = raw.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+            if (match) {
+                const y = match[1];
+                const m = match[2].padStart(2, '0');
+                const d = match[3].padStart(2, '0');
+                const testDate = new Date(`${y}-${m}-${d}`);
+                if (!isNaN(testDate.getTime())) {
+                    return `${y}-${m}-${d}`;
+                }
+            }
+            return val;
+        }
+
+        function normalizeDateInput(inputEl, fieldKey = null) {
+            if (!inputEl.value) return;
+            const formatted = parseAndFormatDate(inputEl.value);
+            inputEl.value = formatted;
+            
+            const picker = document.getElementById(`picker-${inputEl.id}`);
+            if (picker && formatted) picker.value = formatted;
+
+            if (fieldKey) {
+                updateModalStatusLabel(fieldKey, { date: inputEl.value });
+                if (fieldKey === 'mefA') {
+                    window._tempLastMefUpdateDate = baseDateStr.split('T')[0];
+                }
+            }
+        }
+
+        function onDateInputChanged(fieldKey) {
+            const inputEl = document.getElementById(`input-${fieldKey}`);
+            if (inputEl) {
+                updateModalStatusLabel(fieldKey, { date: inputEl.value });
+                if (fieldKey === 'mefA') {
+                    window._tempLastMefUpdateDate = baseDateStr.split('T')[0];
+                }
+            }
+        }
+
+        function alignMefInputToTueThu() {
+            const inputEl = document.getElementById('input-mefA');
+            if (!inputEl || !inputEl.value) return;
+            const adjusted = getAdjustedMefDateStr(parseAndFormatDate(inputEl.value));
+            inputEl.value = adjusted;
+            const picker = document.getElementById('picker-input-mefA');
+            if (picker) picker.value = adjusted;
+            updateModalStatusLabel('mefA', { date: adjusted });
+            window._tempLastMefUpdateDate = baseDateStr.split('T')[0];
+            showToast('MEF-A 日期已對齊至最近的星期二/四', 'sky');
+        }
+
+        function alignRestraintInputToTueThu() {
+            const inputEl = document.getElementById('input-restraint');
+            if (!inputEl || !inputEl.value) return;
+            const adjusted = getAdjustedMefDateStr(parseAndFormatDate(inputEl.value));
+            inputEl.value = adjusted;
+            const picker = document.getElementById('picker-input-restraint');
+            if (picker) picker.value = adjusted;
+            updateModalStatusLabel('restraint', { date: adjusted });
+            showToast('約束到期日已對齊至最近的星期二/四', 'sky');
+        }
+
+        function syncPickerToText(inputId) {
+            const picker = document.getElementById(`picker-${inputId}`);
+            const inputEl = document.getElementById(inputId);
+            if (picker && inputEl && picker.value) {
+                inputEl.value = picker.value;
+                const fieldKey = inputId.replace('input-', '');
+                if (fieldKey !== inputId) {
+                    updateModalStatusLabel(fieldKey, { date: inputEl.value });
+                    if (fieldKey === 'mefA') {
+                        window._tempLastMefUpdateDate = baseDateStr.split('T')[0];
+                    }
+                }
+            }
+        }
+
+        function triggerDatePicker(inputId) {
+            const picker = document.getElementById(`picker-${inputId}`);
+            if (picker) {
+                if (typeof picker.showPicker === 'function') {
+                    picker.showPicker();
+                } else {
+                    picker.focus();
+                    picker.click();
+                }
+            }
+        }
+
+        // ======= 快速由基準日計算延長 =======
+        function quickExtend(fieldKey, addMonths) {
+            const datePart = baseDateStr.split('T')[0];
+            let base = new Date(datePart);
+            if (isNaN(base.getTime())) base = new Date();
+
+            base.setMonth(base.getMonth() + addMonths);
+            base.setDate(base.getDate() - 1);
+
+            if (fieldKey === 'mefA' || fieldKey === 'restraint') {
+                adjustToTuesdayOrThursday(base);
+            }
+
+            const newDateStr = base.toISOString().split('T')[0];
+            const inputEl = document.getElementById(`input-${fieldKey}`);
+            if (inputEl) {
+                inputEl.value = newDateStr;
+                const picker = document.getElementById(`picker-input-${fieldKey}`);
+                if (picker) picker.value = newDateStr;
+                updateModalStatusLabel(fieldKey, { date: newDateStr });
+            }
+
+            if (fieldKey === 'mefA') {
+                window._tempLastMefUpdateDate = datePart;
+            }
+
+            const labelMap = { mefA: 'MEF-A', restraint: '約束到期日', ownMedication: '自購藥物到期日' };
+            const fieldNameLabel = labelMap[fieldKey] || fieldKey;
+            showToast(`${fieldNameLabel} 已由系統基準日計算延長 ${addMonths} 個月！`, 'success');
+        }
+
+        // ======= 每日自動檢查排程機制 =======
+        function checkBaseDateDaily() {
+            const currentDate = new Date().toISOString().split('T')[0];
+            const systemBaseInput = document.getElementById('systemBaseDate');
+            if (!systemBaseInput) return;
+            
+            const currentBaseDate = systemBaseInput.value.split('T')[0];
+            if (currentDate !== currentBaseDate) {
+                showToast(`注意：系統基準日 (${currentBaseDate}) 與現時實際日期 (${currentDate}) 不同！`, 'warning', 6000);
+            }
+        }
+
+        function initDailyCheckSchedule() {
+            checkBaseDateDaily();
+            const now = new Date();
+            const night = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 0, 0, 0);
+            
+            setTimeout(() => {
+                checkBaseDateDaily();
+                setInterval(checkBaseDateDaily, 24 * 60 * 60 * 1000);
+            }, night.getTime() - now.getTime());
+
+            setInterval(checkBaseDateDaily, 60 * 60 * 1000);
+        }
+
+        window.onload = function() {
+            const baseInput = document.getElementById('systemBaseDate');
+            baseInput.value = baseDateStr;
+
+            setInterval(() => {
+                if (!isUserEditingBaseDate) {
+                    baseDateStr = getNowDateTimeString();
+                    baseInput.value = baseDateStr;
+                }
+            }, 1000);
+
+            baseInput.addEventListener('focus', () => { isUserEditingBaseDate = true; });
+            baseInput.addEventListener('blur', () => {
+                if (!baseInput.value) isUserEditingBaseDate = false;
+            });
+
+            baseInput.addEventListener('change', (e) => {
+                if (e.target.value) {
+                    isUserEditingBaseDate = true;
+                    baseDateStr = e.target.value;
+                } else {
+                    isUserEditingBaseDate = false;
+                    baseDateStr = getNowDateTimeString();
+                    e.target.value = baseDateStr;
+                }
+                renderMainView();
+            });
+
+            showStartupModal();
+            initDailyCheckSchedule();
+            renderMainView();
+        };
+
+        function showStartupModal() {
+            document.getElementById('startupImportModal')?.classList.remove('hidden');
+        }
+
+        function closeStartupModal() {
+            document.getElementById('startupImportModal')?.classList.add('hidden');
+        }
+
+        function triggerImportJSONFromStartup() {
+            closeStartupModal();
+            triggerImportJSON();
+        }
+
+        // ======= 現代化 File System Access API 匯入/匯出機制 =======
+        async function triggerImportJSON() {
+            if ('showOpenFilePicker' in window) {
+                try {
+                    const [handle] = await window.showOpenFilePicker({
+                        types: [{
+                            description: 'JSON Files',
+                            accept: { 'application/json': ['.json'] }
+                        }],
+                        multiple: false
+                    });
+                    currentFileHandle = handle;
+                    const file = await handle.getFile();
+                    const text = await file.text();
+                    processImportedJSONText(text, file.name);
+                } catch (err) {
+                    if (err.name !== 'AbortError') {
+                        document.getElementById('importFileInput').click();
+                    }
+                }
+            } else {
+                document.getElementById('importFileInput').click();
+            }
+        }
+
+        function importDataFallback(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            currentFileHandle = null;
+            const reader = new FileReader();
+            reader.onload = (e) => processImportedJSONText(e.target.result, file.name);
+            reader.readAsText(file);
+            event.target.value = '';
+        }
+
+        function processImportedJSONText(jsonText, fileName) {
+            try {
+                const imported = JSON.parse(jsonText);
+                if (Array.isArray(imported)) {
+                    residentsData = imported;
+                    saveData();
+                    isDataChanged = false;
+                    showToast(`已成功匯入數據檔案：${fileName}`, 'success');
+                    setTimeout(checkAndShowExpiryAlert, 200);
+                } else {
+                    showToast("檔案格式不符，請選擇系統的 .json 備份檔。", "error");
+                }
+            } catch (err) {
+                showToast("解析檔案失敗，請確定選擇了正確的 JSON 數據檔。", "error");
+            }
+        }
+
+        async function exportData() {
+            const jsonString = JSON.stringify(residentsData, null, 2);
+
+            if (currentFileHandle) {
+                try {
+                    const options = { mode: 'readwrite' };
+                    if (await currentFileHandle.queryPermission(options) !== 'granted') {
+                        if (await currentFileHandle.requestPermission(options) !== 'granted') {
+                            showToast('無法取得檔案寫入權限，將改為下載備份檔', 'warning');
+                            downloadAsNewFile(jsonString);
+                            return;
+                        }
+                    }
+
+                    const writable = await currentFileHandle.createWritable();
+                    await writable.write(jsonString);
+                    await writable.close();
+
+                    isDataChanged = false;
+                    showToast(`已成功覆蓋更新原檔案 (${currentFileHandle.name})`, 'success');
+                    return;
+                } catch (err) {
+                    console.error('覆蓋檔案失敗，退回下載模式:', err);
+                }
+            }
+
+            downloadAsNewFile(jsonString);
+        }
+
+        function downloadAsNewFile(jsonString) {
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(jsonString);
+            const downloadAnchor = document.createElement('a');
+            const dateFileName = baseDateStr ? baseDateStr.split('T')[0] : new Date().toISOString().split('T')[0];
+            
+            downloadAnchor.setAttribute("href", dataStr);
+            downloadAnchor.setAttribute("download", `院友資料備份_${dateFileName}.json`);
+            document.body.appendChild(downloadAnchor);
+            downloadAnchor.click();
+            downloadAnchor.remove();
+            
+            isDataChanged = false;
+            showToast('數據備份檔 (JSON) 已下載', 'success');
+        }
+
+        function checkAndShowExpiryAlert() {
+            const urgentItems = [];
+            
+            residentsData.forEach(res => {
+                ASSESSMENT_FIELDS.forEach(f => {
+                    const item = res[f.key];
+                    if (!item || !item.date) return;
+                    const days = getDaysDiff(item.date);
+
+                    if (days <= 7) {
+                        urgentItems.push({
+                            room: res.room || '-',
+                            name: res.name || '-',
+                            category: f.label,
+                            date: item.date,
+                            days
+                        });
+                    }
+                });
+            });
+
+            if (urgentItems.length === 0) {
+                showToast("JSON 匯入成功！經全面檢測，目前沒有今日到期、已逾期或 7 日內到期的項目。", "success");
+                return;
+            }
+
+            urgentItems.sort((a, b) => a.days - b.days);
+
+            const rowsHtml = urgentItems.map(item => {
+                let badge = '';
+                if (item.days < 0) {
+                    badge = `<span class="px-2 py-0.5 rounded bg-rose-100 text-rose-800 font-bold">已逾期 ${Math.abs(item.days)} 天</span>`;
+                } else if (item.days === 0) {
+                    badge = `<span class="px-2 py-0.5 rounded bg-amber-100 text-amber-800 font-bold animate-pulse">今日到期</span>`;
+                } else {
+                    badge = `<span class="px-2 py-0.5 rounded bg-orange-100 text-orange-800 font-semibold">${item.days}天內到期</span>`;
+                }
+
+                return `
+                    <tr class="hover:bg-rose-50/50">
+                        <td class="py-2.5 px-3 text-center font-bold text-slate-800 font-mono">${item.room}</td>
+                        <td class="py-2.5 px-3 font-semibold text-slate-900 font-sans">${item.name}</td>
+                        <td class="py-2.5 px-3 text-slate-700 font-sans">${item.category}</td>
+                        <td class="py-2.5 px-3 text-center">${item.date}</td>
+                        <td class="py-2.5 px-3 text-center font-sans">${badge}</td>
+                    </tr>
+                `;
+            }).join('');
+
+            document.getElementById('expiryAlertModalBody').innerHTML = `
+                <div class="text-xs text-slate-600 mb-1">JSON 匯入完成！經全面檢測,發現以下 <span class="font-bold text-rose-600">${urgentItems.length}</span> 項評估/計劃已逾期、今日到期或於 7 日內到期：</div>
+                <div class="overflow-x-auto border border-rose-200 rounded-xl">
+                    <table class="w-full text-left border-collapse text-xs">
+                        <thead>
+                            <tr class="bg-rose-50 border-b border-rose-200 text-rose-900 font-bold">
+                                <th class="py-2.5 px-3 text-center w-20">房號</th>
+                                <th class="py-2.5 px-3 w-28">院友姓名</th>
+                                <th class="py-2.5 px-3">項目</th>
+                                <th class="py-2.5 px-3 text-center w-28">到期日</th>
+                                <th class="py-2.5 px-3 text-center w-28">狀態</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-rose-100 font-mono">${rowsHtml}</tbody>
+                    </table>
+                </div>
+            `;
+            document.getElementById('expiryAlertModal').classList.remove('hidden');
+        }
+
+        function closeExpiryAlertModal() {
+            document.getElementById('expiryAlertModal')?.classList.add('hidden');
+        }
+
+        function saveData() {
+            isDataChanged = true;
+            renderMainView();
+        }
+
+        async function closeAndExportSystem() {
+            if (isDataChanged) {
+                await exportData();
+            } else {
+                showToast('資料未被修改，系統關閉。', 'info');
+            }
+            hasExportedOrClosed = true;
+            setTimeout(() => {
+                try { window.close(); } catch(e) {}
+            }, 600);
+        }
+
+        function openExcelExportModal() {
+            document.getElementById('excelExportModal')?.classList.remove('hidden');
+        }
+
+        function closeExcelExportModal() {
+            document.getElementById('excelExportModal')?.classList.add('hidden');
+        }
+
+        function processExcelExport(type) {
+            closeExcelExportModal();
+
+            const sortedList = getSortedResidents();
+            let exportRows = [];
+            let reportTitle = '';
+            let fileName = '';
+            let sheetName = '';
+            let headerRow = [];
+            let colWidths = [];
+
+            const dateFileName = baseDateStr ? baseDateStr.split('T')[0] : new Date().toISOString().split('T')[0];
+
+            if (type === 'MEF') {
+                reportTitle = '體檢總覽';
+                fileName = `MEF體檢總覽_${dateFileName}.xlsx`;
+                sheetName = '體檢總覽';
+                headerRow = ["房號", "院友姓名", "使用體檢日", "MEF-A 到期日"];
+                colWidths = [{ wch: 16 }, { wch: 20 }, { wch: 18 }, { wch: 18 }];
+
+                exportRows = sortedList.map(res => {
+                    const mefDateStr = res.mefA ? res.mefA.date : '';
+                    let healthCheckDate = '';
+
+                    if (res.mefA && res.mefA.updateDate) {
+                        healthCheckDate = res.mefA.updateDate;
+                    } else if (mefDateStr) {
+                        const d = new Date(mefDateStr);
+                        if (!isNaN(d.getTime())) {
+                            d.setFullYear(d.getFullYear() - 1);
+                            d.setDate(d.getDate() + 1);
+                            healthCheckDate = d.toISOString().split('T')[0];
+                        }
+                    }
+
+                    return [res.room || '', res.name || '', healthCheckDate, mefDateStr];
+                });
+            } else if (type === 'ICP') {
+                reportTitle = 'ICP個人照顧計劃報告';
+                fileName = `ICP個人照顧計劃報告_${dateFileName}.xlsx`;
+                sheetName = 'ICP照顧計劃';
+                headerRow = ["房號", "院友姓名", "個人照顧計劃 (PC)", "ICP"];
+                colWidths = [{ wch: 16 }, { wch: 20 }, { wch: 22 }, { wch: 18 }];
+
+                exportRows = sortedList.map(res => [
+                    res.room || '',
+                    res.name || '',
+                    res.personalCare ? res.personalCare.date : '',
+                    res.icpNurse ? res.icpNurse.date : ''
+                ]);
+            } else if (type === 'FULL') {
+                reportTitle = '完整綜合管理總表';
+                fileName = `院友綜合管理總表_${dateFileName}.xlsx`;
+                sheetName = '綜合總表';
+                headerRow = [
+                    "房號", "院友姓名", "使用體檢日", "MEF-A 到期日",
+                    "約束到期日", "自購藥物到期日", "個人照顧計劃 (PC)", "ICP"
+                ];
+                colWidths = [
+                    { wch: 16 }, { wch: 20 }, { wch: 18 }, { wch: 18 },
+                    { wch: 18 }, { wch: 18 }, { wch: 22 }, { wch: 18 }
+                ];
+
+                exportRows = sortedList.map(res => {
+                    const mefDateStr = res.mefA ? res.mefA.date : '';
+                    let healthCheckDate = res.mefA && res.mefA.updateDate ? res.mefA.updateDate : '';
+
+                    if (!healthCheckDate && mefDateStr) {
+                        const d = new Date(mefDateStr);
+                        if (!isNaN(d.getTime())) {
+                            d.setFullYear(d.getFullYear() - 1);
+                            d.setDate(d.getDate() + 1);
+                            healthCheckDate = d.toISOString().split('T')[0];
+                        }
+                    }
+
+                    return [
+                        res.room || '',
+                        res.name || '',
+                        healthCheckDate,
+                        mefDateStr,
+                        res.restraint ? res.restraint.date : '',
+                        res.ownMedication ? res.ownMedication.date : '',
+                        res.personalCare ? res.personalCare.date : '',
+                        res.icpNurse ? res.icpNurse.date : ''
+                    ];
+                });
+            }
+
+            const worksheet = XLSX.utils.aoa_to_sheet([[reportTitle], headerRow, ...exportRows]);
+            worksheet['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: headerRow.length - 1 } }];
+            worksheet['!cols'] = colWidths;
+
+            const thinBorder = {
+                top: { style: 'thin', color: { rgb: '000000' } },
+                bottom: { style: 'thin', color: { rgb: '000000' } },
+                left: { style: 'thin', color: { rgb: '000000' } },
+                right: { style: 'thin', color: { rgb: '000000' } }
+            };
+
+            const range = XLSX.utils.decode_range(worksheet['!ref']);
+            for (let R = range.s.r; R <= range.e.r; ++R) {
+                for (let C = range.s.c; C <= range.e.c; ++C) {
+                    const cellAddress = XLSX.utils.encode_cell({ r: R, c: C });
+                    if (!worksheet[cellAddress]) worksheet[cellAddress] = { t: 's', v: '' };
+                    const cell = worksheet[cellAddress];
+
+                    if (R === 0) {
+                        cell.s = {
+                            font: { name: 'Microsoft JhengHei', sz: 16, bold: true },
+                            alignment: { horizontal: 'center', vertical: 'center' },
+                            fill: { fgColor: { rgb: 'E2EFDA' } },
+                            border: thinBorder
+                        };
+                    } else if (R === 1) {
+                        cell.s = {
+                            font: { name: 'Microsoft JhengHei', sz: 11, bold: true },
+                            alignment: { horizontal: 'center', vertical: 'center' },
+                            fill: { fgColor: { rgb: 'D9E1F2' } },
+                            border: thinBorder
+                        };
+                    } else {
+                        cell.s = {
+                            font: { name: 'Microsoft JhengHei', sz: 10 },
+                            alignment: { horizontal: 'center', vertical: 'center' },
+                            border: thinBorder
+                        };
+                    }
+                }
+            }
+
+            worksheet['!rows'] = Array.from({ length: range.e.r + 1 }, (_, R) => ({ hpt: R === 0 ? 30 : (R === 1 ? 24 : 20) }));
+
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, worksheet, sheetName);
+            XLSX.writeFile(workbook, fileName);
+            showToast('Excel 試算表已成功下載', 'success');
+        }
+
+        function naturalRoomCompare(aRoom, bRoom) {
+            if (!aRoom && !bRoom) return 0;
+            if (!aRoom) return 1;
+            if (!bRoom) return -1;
+            return aRoom.localeCompare(bRoom, undefined, { numeric: true, sensitivity: 'base' });
+        }
+
+        function getDaysDiff(dueDateStr) {
+            if (!dueDateStr) return null;
+            const base = new Date(baseDateStr.split('T')[0]);
+            base.setHours(0,0,0,0);
+            const target = new Date(dueDateStr);
+            target.setHours(0,0,0,0);
+            return Math.ceil((target - base) / (1000 * 60 * 60 * 24));
+        }
+
+        function getItemRiskStatus(itemObj) {
+            if (!itemObj || !itemObj.date) return { level: 'none', label: '未填寫', days: null };
+            
+            const days = getDaysDiff(itemObj.date);
+            if (days < 0) return { level: 'overdue', label: `已逾期 ${Math.abs(days)} 天`, days };
+            if (days === 0) return { level: 'today', label: '今天到期', days };
+            if (days <= 7) return { level: 'week', label: days === 1 ? '明天到期' : `${days} 天內到期`, days };
+            if (days <= 30) return { level: 'month', label: `${days} 天內到期`, days };
+            return { level: 'normal', label: `${days} 天後`, days };
+        }
+
+        function getResidentHighestRisk(res) {
+            const items = [res.mefA, res.personalCare, res.icpNurse, res.icpSw, res.icpPt, res.restraint, res.ownMedication];
+            const riskLevels = { overdue: false, today: false, week: false, month: false, hasValid: false };
+
+            for (let item of items) {
+                if (item && item.date) {
+                    riskLevels.hasValid = true;
+                    const days = getDaysDiff(item.date);
+                    if (days < 0) riskLevels.overdue = true;
+                    else if (days === 0) riskLevels.today = true;
+                    else if (days <= 7) riskLevels.week = true;
+                    else if (days <= 30) riskLevels.month = true;
+                }
+            }
+
+            if (!riskLevels.hasValid) return 'none';
+            if (riskLevels.overdue) return 'overdue';
+            if (riskLevels.today) return 'today';
+            if (riskLevels.week) return 'week';
+            if (riskLevels.month) return 'month';
+            return 'normal';
+        }
+
+        function calculateNextSuggestedRoom() {
+            let prefix = '2C';
+            let maxNum = 0;
+
+            residentsData.forEach(r => {
+                if (r.room) {
+                    const match = r.room.match(/^([A-Za-z0-9]+?)[-_]?(\d+)$/);
+                    if (match) {
+                        prefix = match[1];
+                        const num = parseInt(match[2], 10);
+                        if (num > maxNum) maxNum = num;
+                    }
+                }
+            });
+
+            const nextNum = maxNum + 1;
+            return `${prefix}${nextNum < 10 ? '0' + nextNum : nextNum}`;
+        }
+
+        function useSuggestedRoom() {
+            const suggested = document.getElementById('btnSuggestedRoom').textContent;
+            if (suggested && suggested !== '--') {
+                document.getElementById('modalRoom').value = suggested;
+            }
+        }
+
+        function toggleSelectAll(selectAllEl) {
+            const visibleCheckboxes = document.querySelectorAll('.resident-checkbox');
+            visibleCheckboxes.forEach(cb => {
+                cb.checked = selectAllEl.checked;
+                const id = parseInt(cb.dataset.id);
+                if (selectAllEl.checked) selectedResidentIds.add(id);
+                else selectedResidentIds.delete(id);
+            });
+            updateBatchActionBar();
+        }
+
+        function handleResidentCheckboxChange(cb, residentId) {
+            if (cb.checked) selectedResidentIds.add(residentId);
+            else selectedResidentIds.delete(residentId);
+            updateBatchActionBar();
+        }
+
+        function clearAllSelections() {
+            selectedResidentIds.clear();
+            const selectAllEl = document.getElementById('selectAllCheckbox');
+            if (selectAllEl) selectAllEl.checked = false;
+            document.querySelectorAll('.resident-checkbox').forEach(cb => cb.checked = false);
+            updateBatchActionBar();
+        }
+
+        function updateBatchActionBar() {
+            const bar = document.getElementById('batchActionBar');
+            const badge = document.getElementById('selectedCountBadge');
+            const count = selectedResidentIds.size;
+
+            if (count > 0) {
+                bar.classList.remove('hidden');
+                badge.textContent = `已選取 ${count} 位`;
+            } else {
+                bar.classList.add('hidden');
+            }
+        }
+
+        function batchExtendField(fieldKey, addMonths) {
+            if (selectedResidentIds.size === 0) return;
+
+            const datePart = baseDateStr.split('T')[0];
+            let updatedCount = 0;
+
+            residentsData.forEach(res => {
+                if (selectedResidentIds.has(res.id)) {
+                    let base = new Date(datePart);
+                    if (isNaN(base.getTime())) base = new Date();
+
+                    base.setMonth(base.getMonth() + addMonths);
+                    base.setDate(base.getDate() - 1);
+
+                    if (fieldKey === 'mefA' || fieldKey === 'restraint') adjustToTuesdayOrThursday(base);
+
+                    const newDateStr = base.toISOString().split('T')[0];
+                    const oldVal = res[fieldKey] ? res[fieldKey].date : '';
+                    
+                    if (fieldKey === 'mefA') res.mefA = { date: newDateStr, updateDate: datePart };
+                    else res[fieldKey] = { date: newDateStr };
+
+                    const labelMap = { mefA: 'MEF-A', restraint: '約束', ownMedication: '自購藥物' };
+                    logAssessmentAuditTrail(res, '集體延長', labelMap[fieldKey] || fieldKey, oldVal, newDateStr);
+                    updatedCount++;
+                }
+            });
+
+            saveData();
+            showToast(`已為 ${updatedCount} 位院友集體延長 ${fieldKey} (${addMonths}個月)！`, 'success');
+        }
+
+        function batchExtendIcpGroup(addMonths) {
+            if (selectedResidentIds.size === 0) return;
+
+            const datePart = baseDateStr.split('T')[0];
+            const icpFields = ['personalCare', 'icpNurse', 'icpSw', 'icpPt'];
+            let updatedCount = 0;
+
+            residentsData.forEach(res => {
+                if (selectedResidentIds.has(res.id)) {
+                    icpFields.forEach(f => {
+                        let base = new Date(datePart);
+                        if (isNaN(base.getTime())) base = new Date();
+
+                        base.setMonth(base.getMonth() + addMonths);
+                        base.setDate(base.getDate() - 1);
+
+                        const newDateStr = base.toISOString().split('T')[0];
+                        const oldVal = res[f] ? res[f].date : '';
+                        res[f] = { date: newDateStr };
+
+                        logAssessmentAuditTrail(res, '集體延長', f, oldVal, newDateStr);
+                    });
+                    updatedCount++;
+                }
+            });
+
+            saveData();
+            showToast(`已為 ${updatedCount} 位院友集體延長全套 ICP 計劃 (${addMonths}個月)！`, 'success');
+        }
+
+        function batchDeletePrompt() {
+            const count = selectedResidentIds.size;
+            if (count === 0) return;
+
+            showConfirmModal({
+                title: '批量刪除確認',
+                message: `確定要刪除已選取的 ${count} 位院友紀錄嗎？`,
+                confirmText: `刪除 ${count} 筆紀錄`,
+                isDanger: true,
+                onConfirm: () => {
+                    residentsData = residentsData.filter(r => !selectedResidentIds.has(r.id));
+                    clearAllSelections();
+                    saveData();
+                    showToast(`已成功刪除 ${count} 筆院友紀錄`, 'success');
+                }
+            });
+        }
+
+        function setFilterRisk(type) {
+            currentFilterRisk = type;
+            ['all', 'overdue', 'today', 'week', 'month'].forEach(b => {
+                const btn = document.getElementById(`btn-filter-${b}`);
+                if (btn) {
+                    btn.className = b === type 
+                        ? 'px-3 py-1.5 rounded-md transition-all whitespace-nowrap bg-sky-600 text-white shadow-sm font-semibold'
+                        : 'px-3 py-1.5 rounded-md transition-all whitespace-nowrap text-slate-600 hover:text-slate-900';
+                }
+            });
+
+            renderMainView();
+        }
+
+        function getCellBadgeHtml(itemObj, isModifiedHighlighted = false) {
+            if (!itemObj || !itemObj.date) {
+                return `<span class="text-slate-300 text-xs">-</span>`;
+            }
+            const status = getItemRiskStatus(itemObj);
+
+            const colorClasses = {
+                overdue: 'bg-rose-100 text-rose-800 border-rose-300 font-bold animate-pulse',
+                today: 'bg-amber-100 text-amber-800 border-amber-300 font-bold',
+                week: 'bg-orange-50 text-orange-800 border-orange-200 font-semibold',
+                month: 'bg-sky-50 text-sky-800 border-sky-200'
+            }[status.level] || 'bg-slate-100 text-slate-600 border-slate-200';
+
+            const highlightStyle = isModifiedHighlighted ? 'modified-date-highlight' : '';
+
+            return `
+                <div class="flex flex-col items-center ${highlightStyle}">
+                    <span class="text-xs font-mono date-text">${itemObj.date}</span>
+                    <span class="text-[10px] px-1.5 py-0.5 rounded border ${colorClasses} mt-0.5 leading-none">
+                        ${status.label}
+                    </span>
+                </div>
+            `;
+        }
+
+        function renderTable() {
+            const tbody = document.getElementById('residentTableBody');
+            const searchKeyword = document.getElementById('searchInput').value.trim().toLowerCase();
+            tbody.innerHTML = '';
+
+            let counts = { overdue: 0, today: 0, week: 0, month: 0 };
+            let visibleCount = 0;
+
+            const sortedList = getSortedResidents();
+            const fragment = document.createDocumentFragment();
+
+            sortedList.forEach(res => {
+                const maxRisk = getResidentHighestRisk(res);
+                if (counts[maxRisk] !== undefined) counts[maxRisk]++;
+
+                const matchSearch = (res.name && res.name.toLowerCase().includes(searchKeyword)) || 
+                                    (res.room && res.room.toLowerCase().includes(searchKeyword));
+                
+                let matchFilter = true;
+                if (currentFilterRisk !== 'all') {
+                    matchFilter = currentFilterRisk === maxRisk;
+                }
+
+                if (modifiedRangeActive) {
+                    matchFilter = matchFilter && isResidentModifiedInRange(res, modifiedStartDateVal, modifiedEndDateVal);
+                }
+
+                if (matchSearch && matchFilter) {
+                    visibleCount++;
+                    const tr = document.createElement('tr');
+                    // 全列可點擊與懸停反白提示 design
+                    tr.className = 'hover:bg-sky-100/70 transition-colors cursor-pointer group border-b border-slate-200';
+                    
+                    const isChecked = selectedResidentIds.has(res.id);
+
+                    tr.onclick = (e) => {
+                        if (['BUTTON', 'I', 'INPUT'].includes(e.target.tagName)) return;
+                        openResidentModal(res.id);
+                    };
+
+                    // 檢查各評估項目在指定修改日期內是否曾被變更
+                    const isMefMod = isFieldModifiedInRange(res, 'mefA', modifiedStartDateVal, modifiedEndDateVal);
+                    const isRestraintMod = isFieldModifiedInRange(res, 'restraint', modifiedStartDateVal, modifiedEndDateVal);
+                    const isOwnMedMod = isFieldModifiedInRange(res, 'ownMedication', modifiedStartDateVal, modifiedEndDateVal);
+                    const isPcMod = isFieldModifiedInRange(res, 'personalCare', modifiedStartDateVal, modifiedEndDateVal);
+                    const isIcpNurseMod = isFieldModifiedInRange(res, 'icpNurse', modifiedStartDateVal, modifiedEndDateVal);
+                    const isIcpSwMod = isFieldModifiedInRange(res, 'icpSw', modifiedStartDateVal, modifiedEndDateVal);
+                    const isIcpPtMod = isFieldModifiedInRange(res, 'icpPt', modifiedStartDateVal, modifiedEndDateVal);
+
+                    tr.innerHTML = `
+                        <td class="py-3 px-3 text-center" onclick="event.stopPropagation()">
+                            <input type="checkbox" data-id="${res.id}" ${isChecked ? 'checked' : ''} onchange="handleResidentCheckboxChange(this, ${res.id})" class="resident-checkbox w-4 h-4 text-sky-600 rounded border-slate-300 focus:ring-sky-500 cursor-pointer">
+                        </td>
+                        <td class="py-3 px-3 text-center font-bold text-slate-800 font-mono">${res.room || '-'}</td>
+                        <td class="py-3 px-3 font-semibold text-sky-950">${res.name || '-'}</td>
+                        <td class="py-3 px-3 font-mono text-xs text-slate-500">${res.admissionDate || '-'}</td>
+                        <td class="py-3 px-3 text-center">${getCellBadgeHtml(res.mefA, isMefMod)}</td>
+                        <td class="py-3 px-3 text-center">${getCellBadgeHtml(res.restraint, isRestraintMod)}</td>
+                        <td class="py-3 px-3 text-center">${getCellBadgeHtml(res.ownMedication, isOwnMedMod)}</td>
+                        <td class="py-3 px-3 text-center">${getCellBadgeHtml(res.personalCare, isPcMod)}</td>
+                        <td class="py-3 px-3 text-center">${getCellBadgeHtml(res.icpNurse, isIcpNurseMod)}</td>
+                        <td class="py-3 px-3 text-center">${getCellBadgeHtml(res.icpSw, isIcpSwMod)}</td>
+                        <td class="py-3 px-3 text-center">${getCellBadgeHtml(res.icpPt, isIcpPtMod)}</td>
+                        <td class="py-3 px-3 text-center" onclick="event.stopPropagation()">
+                            <button onclick="openResidentModal(${res.id})" class="p-1.5 text-slate-400 hover:text-sky-600 transition-colors rounded-lg hover:bg-sky-100" title="編輯">
+                                <i class="fa-solid fa-pen-to-square"></i>
+                            </button>
+                        </td>
+                    `;
+                    fragment.appendChild(tr);
+                }
+            });
+
+            tbody.appendChild(fragment);
+
+            document.getElementById('count-overdue').textContent = counts.overdue;
+            document.getElementById('count-today').textContent = counts.today;
+            document.getElementById('count-week').textContent = counts.week;
+            document.getElementById('count-month').textContent = counts.month;
+
+            document.getElementById('emptyState')?.classList.toggle('hidden', visibleCount > 0);
+            updateBatchActionBar();
+        }
+
+        function updateModalStatusLabel(key, itemObj) {
+            const statusEl = document.getElementById(`status-${key}`);
+            if (!statusEl) return;
+            if (!itemObj || !itemObj.date) {
+                statusEl.textContent = '未設定';
+                statusEl.className = 'text-xs text-slate-400';
+                return;
+            }
+            const status = getItemRiskStatus(itemObj);
+            statusEl.textContent = status.label;
+            
+            if (status.level === 'overdue') statusEl.className = 'text-xs text-rose-600 font-bold';
+            else if (status.level === 'today') statusEl.className = 'text-xs text-amber-600 font-bold';
+            else statusEl.className = 'text-xs text-sky-600';
+        }
+
+        function openResidentModal(residentId = null) {
+            const modal = document.getElementById('residentModal');
+            const title = document.getElementById('modalTitle');
+            const deleteBtn = document.getElementById('btnDeleteResident');
+            const suggestContainer = document.getElementById('roomSuggestContainer');
+            const auditBtn = document.getElementById('btnOpenAuditTrail');
+            const datePart = baseDateStr.split('T')[0];
+            const keys = ['mefA', 'restraint', 'ownMedication', 'personalCare', 'icpNurse', 'icpSw', 'icpPt'];
+            
+            document.getElementById('newWeightDate').value = datePart;
+            document.getElementById('singleWeightPrintBox')?.classList.add('hidden');
+
+            if (residentId) {
+                const res = residentsData.find(r => r.id === residentId);
+                if (!res) return;
+                
+                title.textContent = `編輯院友：${res.name} (${res.room})`;
+                document.getElementById('modalResidentId').value = res.id;
+                document.getElementById('modalRoom').value = res.room || '';
+                document.getElementById('modalName').value = res.name || '';
+                document.getElementById('modalAdmissionDate').value = res.admissionDate || '';
+                document.getElementById('modalWeight').value = res.weight || '';
+                document.getElementById('modalHeight').value = res.height || '';
+
+                currentModalWeightHistory = res.weightHistory ? [...res.weightHistory] : (res.weight ? [{ date: res.admissionDate || datePart, weight: res.weight }] : []);
+                renderWeightHistoryTable();
+                onModalHeightOrWeightChanged();
+
+                keys.forEach(key => {
+                    const val = res[key] ? res[key].date : '';
+                    document.getElementById(`input-${key}`).value = val;
+                    const picker = document.getElementById(`picker-input-${key}`);
+                    if (picker) picker.value = val;
+                    updateModalStatusLabel(key, res[key]);
+                });
+
+                deleteBtn.classList.remove('hidden');
+                auditBtn?.classList.remove('hidden');
+                suggestContainer.classList.add('hidden');
+            } else {
+                title.textContent = '新增院友資料';
+                document.getElementById('modalResidentId').value = '';
+                const nextRoom = calculateNextSuggestedRoom();
+                document.getElementById('modalRoom').value = nextRoom;
+                document.getElementById('modalName').value = '';
+                document.getElementById('modalAdmissionDate').value = datePart;
+                document.getElementById('picker-modalAdmissionDate').value = datePart;
+                document.getElementById('modalWeight').value = '';
+                document.getElementById('modalHeight').value = '';
+
+                currentModalWeightHistory = [];
+                renderWeightHistoryTable();
+                document.getElementById('modalBmiLiveBadge').classList.add('hidden');
+
+                keys.forEach(key => {
+                    document.getElementById(`input-${key}`).value = '';
+                    const picker = document.getElementById(`picker-input-${key}`);
+                    if (picker) picker.value = '';
+                    updateModalStatusLabel(key, null);
+                });
+
+                deleteBtn.classList.add('hidden');
+                auditBtn?.classList.add('hidden');
+                suggestContainer.classList.remove('hidden');
+                document.getElementById('btnSuggestedRoom').textContent = nextRoom;
+            }
+
+            modal.classList.remove('hidden');
+            setTimeout(() => {
+                modal.classList.remove('opacity-0');
+                const transformTarget = modal.querySelector('.transform');
+                transformTarget?.classList.remove('scale-95');
+                transformTarget?.classList.add('scale-100');
+            }, 10);
+        }
+
+        function closeResidentModal() {
+            const modal = document.getElementById('residentModal');
+            modal.classList.add('opacity-0');
+            const transformTarget = modal.querySelector('.transform');
+            transformTarget?.classList.remove('scale-100');
+            transformTarget?.classList.add('scale-95');
+            setTimeout(() => modal.classList.add('hidden'), 200);
+        }
+
+        function saveResidentChanges() {
+            const idVal = document.getElementById('modalResidentId').value;
+            const roomVal = document.getElementById('modalRoom').value.trim();
+            const nameVal = document.getElementById('modalName').value.trim();
+            const admissionDateVal = document.getElementById('modalAdmissionDate').value.trim();
+            const weightVal = document.getElementById('modalWeight').value.trim();
+            const heightVal = document.getElementById('modalHeight').value.trim();
+            const datePart = baseDateStr.split('T')[0];
+
+            if (!roomVal || !nameVal) {
+                showToast('房號與院友姓名為必填欄位！', 'error');
+                return;
+            }
+
+            const mefDateInput = document.getElementById('input-mefA').value.trim();
+            let existingMefUpdateDate = datePart;
+            let oldRes = null;
+            
+            if (idVal) {
+                oldRes = residentsData.find(r => r.id == idVal);
+                if (oldRes && oldRes.mefA) {
+                    existingMefUpdateDate = oldRes.mefA.updateDate || datePart;
+                }
+            }
+            if (window._tempLastMefUpdateDate) {
+                existingMefUpdateDate = window._tempLastMefUpdateDate;
+                window._tempLastMefUpdateDate = null;
+            }
+
+            const residentObj = {
+                id: idVal ? parseInt(idVal) : Date.now(),
+                room: roomVal,
+                name: nameVal,
+                admissionDate: admissionDateVal,
+                weight: weightVal ? parseFloat(weightVal) : '',
+                height: heightVal ? parseFloat(heightVal) : '',
+                weightHistory: currentModalWeightHistory ? [...currentModalWeightHistory] : [],
+                auditTrail: oldRes && oldRes.auditTrail ? [...oldRes.auditTrail] : [],
+                mefA: { date: mefDateInput, updateDate: mefDateInput ? existingMefUpdateDate : '' },
+                restraint: { date: document.getElementById('input-restraint').value.trim() },
+                ownMedication: { date: document.getElementById('input-ownMedication').value.trim() },
+                personalCare: { date: document.getElementById('input-personalCare').value.trim() },
+                icpNurse: { date: document.getElementById('input-icpNurse').value.trim() },
+                icpSw: { date: document.getElementById('input-icpSw').value.trim() },
+                icpPt: { date: document.getElementById('input-icpPt').value.trim() }
+            };
+
+            const keys = [
+                { key: 'mefA', name: 'MEF-A' },
+                { key: 'restraint', name: '約束到期日' },
+                { key: 'ownMedication', name: '自購藥物到期日' },
+                { key: 'personalCare', name: '個人照顧計劃' },
+                { key: 'icpNurse', name: 'ICP護士' },
+                { key: 'icpSw', name: 'ICP社工' },
+                { key: 'icpPt', name: 'ICP物理治療' }
+            ];
+
+            keys.forEach(k => {
+                const oldVal = oldRes && oldRes[k.key] ? oldRes[k.key].date : '';
+                const newVal = residentObj[k.key] ? residentObj[k.key].date : '';
+                if (oldVal !== newVal) {
+                    logAssessmentAuditTrail(residentObj, oldVal ? '日期續期' : '初始建立', k.name, oldVal, newVal);
+                }
+            });
+
+            if (idVal) {
+                const index = residentsData.findIndex(r => r.id == idVal);
+                if (index !== -1) residentsData[index] = residentObj;
+                showToast(`已成功更新院友「${nameVal}」資料`, 'success');
+            } else {
+                residentsData.push(residentObj);
+                showToast(`已成功新增院友「${nameVal}」`, 'success');
+            }
+
+            saveData();
+            closeResidentModal();
+        }
+
+        function deleteCurrentResident() {
+            const idVal = document.getElementById('modalResidentId').value;
+            if (!idVal) return;
+
+            showConfirmModal({
+                title: '刪除院友確認',
+                message: '確定要刪除此筆院友紀錄嗎？',
+                confirmText: '確定刪除',
+                isDanger: true,
+                onConfirm: () => {
+                    residentsData = residentsData.filter(r => r.id != idVal);
+                    saveData();
+                    closeResidentModal();
+                    showToast('已刪除該筆院友紀錄', 'success');
+                }
+            });
+        }
+
+        // ======= Todo & Print Modal Logic =======
+        function openTodoPrintModal() {
+            const modal = document.getElementById('todoPrintModal');
+            if (modal) {
+                modal.classList.remove('hidden');
+                renderTodoModalContent();
+            }
+        }
+
+        function closeTodoPrintModal() {
+            document.getElementById('todoPrintModal')?.classList.add('hidden');
+        }
+
+        function setTodoRange(rangeType) {
+            todoRangeFilter = rangeType;
+            ['7', '30', 'overdue7', 'all', 'custom'].forEach(b => {
+                const btn = document.getElementById(`btnTodoRange${b.charAt(0).toUpperCase() + b.slice(1)}`);
+                if (btn) {
+                    btn.className = b === rangeType
+                        ? 'px-2.5 py-1 rounded-lg font-semibold bg-sky-600 text-white shadow-sm'
+                        : 'px-2.5 py-1 rounded-lg text-slate-600 hover:bg-slate-200';
+                }
+            });
+
+            const customContainer = document.getElementById('customDateRangeContainer');
+            if (rangeType === 'custom') {
+                customContainer.classList.remove('hidden');
+                const todayStr = new Date().toISOString().split('T')[0];
+                if (!document.getElementById('todoStartDate').value) document.getElementById('todoStartDate').value = todayStr;
+                if (!document.getElementById('todoEndDate').value) document.getElementById('todoEndDate').value = todayStr;
+            } else {
+                customContainer.classList.add('hidden');
+            }
+
+            renderTodoModalContent();
+        }
+
+        function setTodoCategory(catType) {
+            todoCategoryFilter = catType;
+            ['all', 'mefAndRestraint', 'ownMedication', 'pc', 'icp'].forEach(c => {
+                const btnKey = c === 'mefAndRestraint' ? 'MefAndRestraint' : c.charAt(0).toUpperCase() + c.slice(1);
+                const btn = document.getElementById(`btnTodoCat${btnKey}`);
+                if (btn) {
+                    btn.className = c === catType
+                        ? 'px-2.5 py-1 rounded-lg font-semibold bg-sky-600 text-white shadow-sm'
+                        : 'px-2.5 py-1 rounded-lg text-slate-600 hover:bg-slate-200';
+                }
+            });
+            renderTodoModalContent();
+        }
+
+        function onCustomDateChange() {
+            renderTodoModalContent();
+        }
+
+        function getFilteredTodoList() {
+            const list = [];
+            const base = new Date(baseDateStr.split('T')[0]);
+            base.setHours(0,0,0,0);
+
+            const customStart = document.getElementById('todoStartDate').value ? new Date(document.getElementById('todoStartDate').value) : null;
+            const customEnd = document.getElementById('todoEndDate').value ? new Date(document.getElementById('todoEndDate').value) : null;
+            if (customStart) customStart.setHours(0,0,0,0);
+            if (customEnd) customEnd.setHours(0,0,0,0);
+
+            const fields = [
+                { key: 'mefA', label: 'MEF-A 評估' },
+                { key: 'restraint', label: '約束到期日' },
+                { key: 'ownMedication', label: '自購藥物到期日' },
+                { key: 'personalCare', label: '個人照顧計劃 (PC)' },
+                { key: 'icp', label: 'ICP' }
+            ];
+
+            residentsData.forEach(res => {
+                fields.forEach(f => {
+                    const item = f.key === 'icp' ? res.icpNurse : res[f.key];
+                    if (!item || !item.date) return;
+
+                    if (todoCategoryFilter === 'mefAndRestraint' && f.key !== 'mefA' && f.key !== 'restraint') return;
+                    if (todoCategoryFilter === 'ownMedication' && f.key !== 'ownMedication') return;
+                    if (todoCategoryFilter === 'pc' && f.key !== 'personalCare') return;
+                    if (todoCategoryFilter === 'icp' && f.key !== 'icp') return;
+
+                    const targetDate = new Date(item.date);
+                    targetDate.setHours(0,0,0,0);
+                    const diffDays = Math.ceil((targetDate - base) / (1000 * 60 * 60 * 24));
+
+                    let matchRange = false;
+                    if (todoRangeFilter === '7' && diffDays >= 0 && diffDays <= 7) matchRange = true;
+                    else if (todoRangeFilter === '30' && diffDays >= 0 && diffDays <= 30) matchRange = true;
+                    else if (todoRangeFilter === 'overdue7' && diffDays <= 7) matchRange = true;
+                    else if (todoRangeFilter === 'all' && diffDays <= 30) matchRange = true;
+                    else if (todoRangeFilter === 'custom' && customStart && customEnd) {
+                        if (targetDate >= customStart && targetDate <= customEnd) matchRange = true;
+                    }
+
+                    if (matchRange) {
+                        list.push({
+                            room: res.room || '-',
+                            name: res.name || '-',
+                            category: f.label,
+                            date: item.date,
+                            diffDays
+                        });
+                    }
+                });
+            });
+
+            return list.sort((a, b) => new Date(a.date) - new Date(b.date) || naturalRoomCompare(a.room, b.room));
+        }
+
+        function renderTodoModalContent() {
+            const body = document.getElementById('todoModalBody');
+            const todoList = getFilteredTodoList();
+
+            if (todoList.length === 0) {
+                body.innerHTML = `
+                    <div class="py-12 text-center text-slate-400">
+                        <i class="fa-solid fa-circle-check text-4xl mb-3 text-emerald-500"></i>
+                        <p class="text-sm font-medium">此條件範圍內沒有需要續期的待辦項目</p>
+                    </div>
+                `;
+                return;
+            }
+
+            const rowsHtml = todoList.map(item => {
+                let badgeClass = 'bg-sky-50 text-sky-700';
+                let label = `${item.diffDays} 天後到期`;
+
+                if (item.diffDays < 0) {
+                    badgeClass = 'bg-rose-100 text-rose-800 font-bold';
+                    label = `已逾期 ${Math.abs(item.diffDays)} 天`;
+                } else if (item.diffDays === 0) {
+                    badgeClass = 'bg-amber-100 text-amber-800 font-bold';
+                    label = '今日到期';
+                }
+
+                return `
+                    <tr class="hover:bg-slate-50">
+                        <td class="py-2.5 px-4 text-center font-bold text-slate-800 font-mono">${item.room}</td>
+                        <td class="py-2.5 px-4 font-semibold text-sky-950 font-sans">${item.name}</td>
+                        <td class="py-2.5 px-4 text-slate-700 font-sans">${item.category}</td>
+                        <td class="py-2.5 px-4 text-center">${item.date}</td>
+                        <td class="py-2.5 px-4 text-center font-sans"><span class="px-2 py-0.5 rounded border ${badgeClass}">${label}</span></td>
+                    </tr>
+                `;
+            }).join('');
+
+            body.innerHTML = `
+                <div class="text-xs text-slate-500 mb-2">共找到 <span class="font-bold text-sky-700">${todoList.length}</span> 項符合條件的到期項目：</div>
+                <div class="overflow-x-auto border border-slate-200 rounded-xl">
+                    <table class="w-full text-left border-collapse text-xs">
+                        <thead>
+                            <tr class="bg-slate-100 border-b border-slate-200 text-slate-700 font-bold uppercase tracking-wider">
+                                <th class="py-3 px-4 text-center w-24">房號</th>
+                                <th class="py-3 px-4 w-32">院友姓名</th>
+                                <th class="py-3 px-4">待辦項目類別</th>
+                                <th class="py-3 px-4 text-center w-36">到期日</th>
+                                <th class="py-3 px-4 text-center w-32">狀態</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-200 font-mono">${rowsHtml}</tbody>
+                    </table>
+                </div>
+            `;
+        }
+
+        function triggerPrintFromModal() {
+            const todoList = getFilteredTodoList();
+            if (todoList.length === 0) {
+                showToast('無可供列印之待辦項目', 'warning');
+                return;
+            }
+
+            const datePart = baseDateStr.split('T')[0];
+
+            const rowsHtml = todoList.map(item => {
+                const label = item.diffDays < 0 ? `已逾期 ${Math.abs(item.diffDays)} 天` : (item.diffDays === 0 ? '今日到期' : `${item.diffDays}天後`);
+                return `
+                    <tr>
+                        <td class="border border-slate-800 p-2 text-center font-bold font-mono text-slate-800">${item.room}</td>
+                        <td class="border border-slate-800 p-2 font-semibold">${item.name}</td>
+                        <td class="border border-slate-800 p-2">${item.category}</td>
+                        <td class="border border-slate-800 p-2 text-center">${item.date}</td>
+                        <td class="border border-slate-800 p-2 text-center text-[10px]">${label}</td>
+                    </tr>
+                `;
+            }).join('');
+
+            document.getElementById('printableContent').innerHTML = `
+                <div class="text-center mb-6">
+                    <h2 class="text-xl font-bold">安老院舍評估及照顧計劃待辦到期報表</h2>
+                    <p class="text-xs text-slate-600 mt-1">系統基準日：${datePicker || datePart} | 列印日期：${new Date().toISOString().split('T')[0]}</p>
+                </div>
+                <table class="w-full border-collapse border border-slate-800 text-xs">
+                    <thead>
+                        <tr class="bg-slate-200">
+                            <th class="border border-slate-800 p-2 text-center w-16">房號</th>
+                            <th class="border border-slate-800 p-2 w-28">院友姓名</th>
+                            <th class="border border-slate-800 p-2">項目類別</th>
+                            <th class="border border-slate-800 p-2 text-center w-28">到期日</th>
+                            <th class="border border-slate-800 p-2 text-center w-28">狀態核對</th>
+                        </tr>
+                    </thead>
+                    <tbody>${rowsHtml}</tbody>
+                </table>
+            `;
+            window.print();
+        }
+    </script>
+</body>
+</html>
